@@ -76,12 +76,18 @@ jotun cp 1
 
 ## 📦 Installation
 
-### 1. Pre-built Binary (Fedora/Linux)
+### 1. The Developer Way (Recommended)
+If you have Rust installed, this is the fastest way to get Jotun:
+```bash
+cargo install jotun
+```
+
+### 2. The One-Liner (Pre-built Binary)
 ```bash
 curl -sSL https://raw.githubusercontent.com/dev-Aatif/jot/main/install.sh | bash
 ```
 
-### 2. Manual (From Source)
+### 3. Manual (From Source)
 ```bash
 git clone https://github.com/dev-Aatif/jot
 cd jot
