@@ -93,6 +93,15 @@ cp target/release/jotun ~/.local/bin/
 
 ## 🧠 Usage
 
+### Global Commands
+| Command | Description |
+| :--- | :--- |
+| `jotun` | Print current help and usage metadata. |
+| `jotun -h` | Print a concise summary of all subcommands. |
+| `jotun --help` | Print the full documentation of all subcommands. |
+
+---
+
 ### Command Summary
 
 <<<<<<< HEAD
@@ -119,10 +128,14 @@ cp target/release/jotun ~/.local/bin/
 
 ---
 
+---
+
 ## ⚙️ Configuration
 
-Set the `JOT_DB_PATH` environment variable to override the default database location:
-- **Default:** `~/.local/share/jot/jot.db`
+Set the `JOTUN_DB_PATH` environment variable to override the default database location:
+- **Default:** `~/.local/share/jotun/jotun.db`
+
+---
 
 ---
 
