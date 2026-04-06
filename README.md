@@ -93,29 +93,17 @@ cp target/release/jotun ~/.local/bin/
 
 ## 🧠 Usage
 
-### Global Commands
-| Command | Description |
+### Global Options
+| Example | Action |
 | :--- | :--- |
-| `jotun` | Print current help and usage metadata. |
-| `jotun -h` | Print a concise summary of all subcommands. |
-| `jotun --help` | Print the full documentation of all subcommands. |
+| `jotun` | Print usage summary. |
+| `jotun -h` | Print quick-reference help. |
+| `jotun --help` | Print verbose documentation of all commands. |
 
 ---
 
 ### Command Summary
 
-<<<<<<< HEAD
-- `jot` - list all commands.
-- `jot -h or --help` Displays all commands
-- `jot new [text]` – Save a new note (reads from stdin if no text provided).
-- `jot ls` – List all notes with IDs and previews.
-- `jot show [id]` – Display the full content of a specific note.
-- `jot find [query]` – Search notes using SQLite FTS5.
-- `jot edit [id]` – Open a note in your system's `$EDITOR`.
-- `jot cp [id]` – Copy a note's body to the clipboard.
-- `jot paste` – Create a new note from your clipboard content.
-- `jot rm [id]` – Delete a note.
-=======
 - `jotun new [text]` – Save a new note (reads from stdin if no text provided).
 - `jotun ls` – List all notes with IDs and previews.
 - `jotun show [id]` – Display the full content of a specific note.
@@ -123,10 +111,7 @@ cp target/release/jotun ~/.local/bin/
 - `jotun edit [id]` – Open a note in your system's `$EDITOR`.
 - `jotun cp [id]` – Copy a note's body to the clipboard.
 - `jotun paste` – Create a new note from your clipboard content.
-- `jotun rm [id]` – Delete a note.
->>>>>>> f28fcd9 (feat: Official v0.1.0 Release of Jotun)
-
----
+- `jotun rm [id]` – Delete a note (with `-f` to skip confirmation).
 
 ---
 
@@ -134,8 +119,6 @@ cp target/release/jotun ~/.local/bin/
 
 Set the `JOTUN_DB_PATH` environment variable to override the default database location:
 - **Default:** `~/.local/share/jotun/jotun.db`
-
----
 
 ---
 
