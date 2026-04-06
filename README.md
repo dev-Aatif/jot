@@ -20,8 +20,9 @@
   <a href="https://github.com/dev-Aatif/jot/issues">Request Feature</a>
 </p>
 
-<br />
-<img src="https://via.placeholder.com/800x400?text=Jotun+-+The+Fastest+Notes+in+the+Terminal" alt="Project Preview" width="800" />
+<p align="center">
+  <img src="./jotun.gif" alt="Jotun Terminal Demo" width="800" />
+</p>
 </div>
 
 ---
