@@ -51,12 +51,16 @@
 - **Local First**: Everything is stored in a single SQLite database on your machine.
 - **Default Editor**: Edit notes in your preferred `$EDITOR` (vim, nano, etc.).
 
+---
+
 ## 🏗 Tech Stack
 
 - **Language**: [Rust](https://www.rust-lang.org/)
 - **Database**: [SQLite](https://www.sqlite.org/) (via [rusqlite](https://github.com/rusqlite/rusqlite))
 - **CLI Framework**: [clap](https://github.com/clap-rs/clap)
 - **Styling**: [colored](https://github.com/colored-rs/colored)
+
+---
 
 ## ⚡ Quick Start
 
@@ -67,6 +71,8 @@ jot new "deploy to production: kubectl rollout restart..."
 # Copy it to your clipboard for use
 jot cp 1
 ```
+
+---
 
 ## 📦 Installation
 
@@ -83,10 +89,14 @@ cargo build --release
 cp target/release/jot ~/.local/bin/
 ```
 
+---
+
 ## 🧠 Usage
 
 ### Command Summary
 
+- `jot` - list all commands.
+- `jot -h or --help` Displays all commands
 - `jot new [text]` – Save a new note (reads from stdin if no text provided).
 - `jot ls` – List all notes with IDs and previews.
 - `jot show [id]` – Display the full content of a specific note.
@@ -96,10 +106,14 @@ cp target/release/jot ~/.local/bin/
 - `jot paste` – Create a new note from your clipboard content.
 - `jot rm [id]` – Delete a note.
 
+---
+
 ## ⚙️ Configuration
 
 Set the `JOT_DB_PATH` environment variable to override the default database location:
 - **Default:** `~/.local/share/jot/jot.db`
+
+---
 
 ## 🗂 Project Structure
 
@@ -112,6 +126,8 @@ Set the `JOT_DB_PATH` environment variable to override the default database loca
 └── tests/          # Integration tests
 ```
 
+---
+
 ## 🧪 Testing
 
 ```bash
@@ -119,19 +135,27 @@ Set the `JOT_DB_PATH` environment variable to override the default database loca
 cargo test
 ```
 
+---
+
 ## 🛣 Roadmap
 
 - [x] V0.1.0: Core CLI (Stable)
 - [ ] V0.2.0: Tagging & Categorization
 - [ ] V0.3.0: macOS Clipboard support
 
+---
+
 ## 🚀 What's Next?
 
 Our **V1.0 Goal** is a full interactive TUI dashboard. Imagine a system as premium as `btop` but for managing thousands of code snippets, notes, and task lists, all powered by our lightning-fast search engine.
 
+---
+
 ## 🤝 Contributing
 
 We welcome your PRs and bug reports in the [issue tracker](https://github.com/dev-Aatif/jot/issues)!
+
+---
 
 ## 📄 License
 
