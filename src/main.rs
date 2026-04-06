@@ -79,12 +79,12 @@ fn main() -> Result<()> {
                 return Err(anyhow!("Note content cannot be empty."));
             }
             let id = db.create_note(&content, &source)?;
-            println!("{} Saved note #{}", "✓".green(), id);
+            println!("{} Jotun: Saved note #{}", "✓".green(), id);
         }
         Commands::Ls => {
             let notes = db.list_notes()?;
             if notes.is_empty() {
-                println!("No notes found. Create one with `jot new \"text\"`.");
+                println!("No notes found. Create one with `jotun new \"text\"`.");
                 return Ok(());
             }
             println!("{}", "Note ID | Created | Preview".dimmed());
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
             let note = db.get_note(id)?;
             println!(
                 "{} #{} ({})",
-                "Note".bold().cyan(),
+                "Jotun Note".bold().cyan(),
                 note.id,
                 note.created.format("%Y-%m-%d %H:%M").to_string().dimmed()
             );
@@ -116,7 +116,7 @@ fn main() -> Result<()> {
                 println!("No results found for '{}'.", query);
                 return Ok(());
             }
-            println!("{} Found {} results:", "✓".green(), notes.len());
+            println!("{} Jotun: Found {} results:", "✓".green(), notes.len());
             for note in notes {
                 let preview = note.body.lines().next().unwrap_or("").chars().take(50).collect::<String>();
                 println!(
@@ -142,7 +142,7 @@ fn main() -> Result<()> {
                 let updated_body = updated_body.trim();
                 if updated_body != note.body {
                     db.update_note(id, updated_body)?;
-                    println!("{} Updated note #{}", "✓".green(), id);
+                    println!("{} Jotun: Updated note #{}", "✓".green(), id);
                 } else {
                     println!("No changes made.");
                 }
@@ -161,12 +161,12 @@ fn main() -> Result<()> {
                 }
             }
             db.delete_note(id)?;
-            println!("{} Deleted note #{}", "✓".green(), id);
+            println!("{} Jotun: Deleted note #{}", "✓".green(), id);
         }
         Commands::Cp { id } => {
             let note = db.get_note(id)?;
             copy_to_clipboard(&note.body)?;
-            println!("{} Copied note #{} to clipboard.", "✓".green(), id);
+            println!("{} Jotun: Copied note #{} to clipboard.", "✓".green(), id);
         }
         Commands::Paste => {
             let content = get_from_clipboard()?;
@@ -174,7 +174,7 @@ fn main() -> Result<()> {
                 return Err(anyhow!("Clipboard is empty."));
             }
             let id = db.create_note(&content, "clipboard")?;
-            println!("{} Saved note #{} from clipboard.", "✓".green(), id);
+            println!("{} Jotun: Saved note #{} from clipboard.", "✓".green(), id);
         }
     }
 
@@ -182,14 +182,14 @@ fn main() -> Result<()> {
 }
 
 fn get_db_path() -> Result<PathBuf> {
-    if let Ok(p) = std::env::var("JOT_DB_PATH") {
+    if let Ok(p) = std::env::var("JOTUN_DB_PATH") {
         return Ok(PathBuf::from(p));
     }
     
     let mut path = dirs::data_dir()
         .ok_or_else(|| anyhow!("Could not find user data directory"))?;
-    path.push("jot");
-    path.push("jot.db");
+    path.push("jotun");
+    path.push("jotun.db");
     Ok(path)
 }
 

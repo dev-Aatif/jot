@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 JOT (v0.1.0)
+# 🚀 JOTUN (v0.1.0)
 
 **A lightning-fast, terminal-native note-taking tool built in Rust. One command to capture, one command to retrieve.**
 
@@ -21,7 +21,7 @@
 </p>
 
 <br />
-<img src="https://via.placeholder.com/800x400?text=Jot+-+The+Fastest+Notes+in+the+Terminal" alt="Project Preview" width="800" />
+<img src="https://via.placeholder.com/800x400?text=Jotun+-+The+Fastest+Notes+in+the+Terminal" alt="Project Preview" width="800" />
 </div>
 
 ---
@@ -45,8 +45,8 @@
 
 ## ✨ Features
 
-- **Quick Capture**: Save notes from arguments or pipe from stdin (`echo "cmd" | jot new`).
-- **Clipboard Sync**: One-command copy/paste (`jot cp` / `jot paste`) for Wayland and X11.
+- **Quick Capture**: Save notes from arguments or pipe from stdin (`echo "cmd" | jotun new`).
+- **Clipboard Sync**: One-command copy/paste (`jotun cp` / `jotun paste`) for Wayland and X11.
 - **Fast Search**: Instant full-text search powered by SQLite FTS5.
 - **Local First**: Everything is stored in a single SQLite database on your machine.
 - **Default Editor**: Edit notes in your preferred `$EDITOR` (vim, nano, etc.).
@@ -66,10 +66,10 @@
 
 ```bash
 # Save a command you always forget
-jot new "deploy to production: kubectl rollout restart..."
+jotun new "deploy to production: kubectl rollout restart..."
 
 # Copy it to your clipboard for use
-jot cp 1
+jotun cp 1
 ```
 
 ---
@@ -86,7 +86,7 @@ curl -sSL https://raw.githubusercontent.com/dev-Aatif/jot/main/install.sh | bash
 git clone https://github.com/dev-Aatif/jot
 cd jot
 cargo build --release
-cp target/release/jot ~/.local/bin/
+cp target/release/jotun ~/.local/bin/
 ```
 
 ---
@@ -95,6 +95,7 @@ cp target/release/jot ~/.local/bin/
 
 ### Command Summary
 
+<<<<<<< HEAD
 - `jot` - list all commands.
 - `jot -h or --help` Displays all commands
 - `jot new [text]` – Save a new note (reads from stdin if no text provided).
@@ -105,6 +106,16 @@ cp target/release/jot ~/.local/bin/
 - `jot cp [id]` – Copy a note's body to the clipboard.
 - `jot paste` – Create a new note from your clipboard content.
 - `jot rm [id]` – Delete a note.
+=======
+- `jotun new [text]` – Save a new note (reads from stdin if no text provided).
+- `jotun ls` – List all notes with IDs and previews.
+- `jotun show [id]` – Display the full content of a specific note.
+- `jotun find [query]` – Search notes using SQLite FTS5.
+- `jotun edit [id]` – Open a note in your system's `$EDITOR`.
+- `jotun cp [id]` – Copy a note's body to the clipboard.
+- `jotun paste` – Create a new note from your clipboard content.
+- `jotun rm [id]` – Delete a note.
+>>>>>>> f28fcd9 (feat: Official v0.1.0 Release of Jotun)
 
 ---
 

@@ -4,7 +4,7 @@ set -e
 
 # Configuration
 REPO="dev-Aatif/jot"
-BINARY_NAME="jot"
+BINARY_NAME="jotun"
 INSTALL_DIR="$HOME/.local/bin"
 
 # Colors
@@ -39,7 +39,7 @@ if [ -z "$LATEST_TAG" ]; then
     exit 1
 fi
 
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/jot-linux-x86_64"
+DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/jotun-linux-x86_64"
 
 # 3. Create install dir if it doesn't exist
 mkdir -p "$INSTALL_DIR"
@@ -49,7 +49,7 @@ echo -e "${BLUE}📥 Downloading $LATEST_TAG...${NC}"
 curl -sSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/$BINARY_NAME"
 chmod +x "$INSTALL_DIR/$BINARY_NAME"
 
-echo -e "${GREEN}✅ Jot has been installed to $INSTALL_DIR/$BINARY_NAME${NC}"
+echo -e "${GREEN}✅ Jotun has been installed to $INSTALL_DIR/$BINARY_NAME${NC}"
 
 # 5. Check if in PATH
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
@@ -58,4 +58,4 @@ if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo -e "  export PATH=\"\$PATH:\$HOME/.local/bin\""
 fi
 
-echo -e "${BLUE}🎉 Done! Try running: jot new \"Hello Jot\"${NC}"
+echo -e "${BLUE}🎉 Done! Try running: jotun new \"Hello Jotun\"${NC}"

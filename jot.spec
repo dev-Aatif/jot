@@ -1,4 +1,4 @@
-Name:           jot
+Name:           jotun
 Version:        0.1.0
 Release:        1%{?dist}
 Summary:        A lightning-fast, terminal-native note-taking tool built in Rust.
@@ -12,7 +12,7 @@ BuildRequires:  cargo
 BuildRequires:  sqlite-devel
 
 %description
-Jot is a fast, terminal-native note-taking tool that lets you capture,
+Jotun is a fast, terminal-native note-taking tool that lets you capture,
 retrieve, and search text snippets without leaving your shell.
 
 %prep
@@ -24,12 +24,12 @@ cargo build --release --locked --all-features
 %install
 rm -rf %{buildroot}
 mkdir -p %{buildroot}%{_bindir}
-install -p -m 755 target/release/jot %{buildroot}%{_bindir}/jot
+install -p -m 755 target/release/jotun %{buildroot}%{_bindir}/jotun
 
 %files
 %license LICENSE
 %doc README.md
-%{_bindir}/jot
+%{_bindir}/jotun
 
 %changelog
 * Mon Apr 06 2026 dev-Aatif <dev-Aatif@github.com> - 0.1.0-1
