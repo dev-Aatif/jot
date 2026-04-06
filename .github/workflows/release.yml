@@ -1,0 +1,26 @@
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build release binary
+      run: cargo build --release --verbose
+    - name: Rename binary for release
+      run: mv target/release/jot target/release/jot-linux-x86_64
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v2
+      with:
+        files: target/release/jot-linux-x86_64
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
