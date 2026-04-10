@@ -13,14 +13,14 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 Installing Jot...${NC}"
+echo -e "${BLUE}🚀 Installing Jotun...${NC}"
 
 # 1. Detect OS and Architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 if [ "$OS" != "linux" ]; then
-    echo -e "${RED}❌ Jot v0.1.0 currently supports Linux only.${NC}"
+    echo -e "${RED}❌ Jotun v0.2.0 currently supports Linux only.${NC}"
     exit 1
 fi
 

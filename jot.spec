@@ -1,5 +1,5 @@
 Name:           jotun
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        A lightning-fast, terminal-native note-taking tool built in Rust.
 
@@ -32,5 +32,7 @@ install -p -m 755 target/release/jotun %{buildroot}%{_bindir}/jotun
 %{_bindir}/jotun
 
 %changelog
+* Sat Apr 11 2026 dev-Aatif <dev-Aatif@github.com> - 0.2.0-1
+- Release of jotun v0.2.0 with Interactive TUI Dashboard
 * Mon Apr 06 2026 dev-Aatif <dev-Aatif@github.com> - 0.1.0-1
-- Initial release of jot v0.1.0
+- Initial release of jotun v0.1.0

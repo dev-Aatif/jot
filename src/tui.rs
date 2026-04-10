@@ -43,17 +43,30 @@ impl<'a> App<'a> {
     }
 
     fn update_notes(&mut self) -> Result<()> {
-        self.notes = if self.search_query.is_empty() {
-            self.db.list_notes()?
+        let res = if self.search_query.is_empty() {
+            self.db.list_notes()
         } else {
-            self.db.search_notes(&self.search_query)?
+            self.db.search_notes(&self.search_query)
         };
+
+        match res {
+            Ok(notes) => {
+                self.notes = notes;
+                if !self.search_query.is_empty() {
+                    self.status_msg = format!("Found {} results", self.notes.len());
+                }
+            }
+            Err(_) => {
+                self.notes = Vec::new();
+                self.status_msg = String::from("❌ Invalid search pattern");
+            }
+        }
         
         if self.notes.is_empty() {
             self.list_state.select(None);
         } else {
             let selected = self.list_state.selected().unwrap_or(0);
-            self.list_state.select(Some(selected.min(self.notes.len() - 1)));
+            self.list_state.select(Some(selected.min(self.notes.len().saturating_sub(1))));
         }
         Ok(())
     }
@@ -288,4 +301,69 @@ fn ui(f: &mut Frame, app: &mut App) {
     let help = Paragraph::new(help_text)
         .block(Block::default().borders(Borders::ALL).title("Help"));
     f.render_widget(help, status_bar[1]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+
+    #[test]
+    fn test_app_navigation() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("Note 1", "test")?;
+        db.create_note("Note 2", "test")?;
+        
+        let mut app = App::new(&db)?;
+        assert_eq!(app.notes.len(), 2);
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.next();
+        assert_eq!(app.list_state.selected(), Some(1));
+
+        app.next(); // Wrap around
+        assert_eq!(app.list_state.selected(), Some(0));
+
+        app.previous(); // Wrap around
+        assert_eq!(app.list_state.selected(), Some(1));
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_app_search_filtering() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("Apple", "test")?;
+        db.create_note("Banana", "test")?;
+        
+        let mut app = App::new(&db)?;
+        app.search_query = String::from("Apple");
+        app.update_notes()?;
+        
+        assert_eq!(app.notes.len(), 1);
+        assert_eq!(app.notes[0].body, "Apple");
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_empty_search_behavior() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("Anything", "test")?;
+        
+        let mut app = App::new(&db)?;
+        app.search_query = String::from("NothingShouldMatchThis");
+        app.update_notes()?;
+        
+        assert_eq!(app.notes.len(), 0);
+        assert_eq!(app.list_state.selected(), None);
+        
+        // Clear search
+        app.search_query.clear();
+        app.update_notes()?;
+        assert_eq!(app.notes.len(), 1);
+        assert_eq!(app.list_state.selected(), Some(0));
+        
+        Ok(())
+    }
 }

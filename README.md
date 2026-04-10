@@ -1,8 +1,8 @@
 <div align="center">
+  
+# 🚀 JOTUN (v0.2.0)
 
-# 🚀 JOTUN (v0.1.0)
-
-**A lightning-fast, terminal-native note-taking tool built in Rust. One command to capture, one command to retrieve.**
+**The lightning-fast, terminal-native note manager. Capture at the speed of thought. Retrieve at the speed of Rust.**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-333333?style=for-the-badge&logo=opensourceinitiative" alt="License"></a>
@@ -27,49 +27,40 @@
 
 ---
 
-## 📚 Table of Contents
+## 🆕 New in v0.2.0: The Interactive Dashboard
+Jotun isn't just a CLI tool anymore. v0.2.0 introduces a **vibrant, btop-inspired TUI dashboard** that turns your note-taking into a high-speed command center.
 
-- [✨ Features](#-features)
-- [🏗 Tech Stack](#-tech-stack)
-- [⚡ Quick Start](#-quick-start)
-- [📦 Installation](#-installation)
-- [🧠 Usage](#-usage)
-- [⚙️ Configuration](#-configuration)
-- [🗂 Project Structure](#-project-structure)
-- [🧪 Testing](#-testing)
-- [🛣 Roadmap](#-roadmap)
-- [🤝 Contributing](#-contributing)
-- [🚀 What's Next?](#-whats-next)
-- [📄 License](#-license)
+- **Immersive Sidebar**: Browse your notes with Vim-style `j/k` navigation.
+- **Instant Preview**: See full note content instantly as you scroll.
+- **Dynamic Search**: Type `/` to filter your entire database in real-time.
+- **One-Key Actions**: 
+  - `n` — Create a new note without leaving the dashboard.
+  - `y` — Copy current note to clipboard.
+  - `e` — Edit note in your preferred `$EDITOR`.
+  - `d` — Delete with confirmation.
 
 ---
 
 ## ✨ Features
 
-- **Quick Capture**: Save notes from arguments or pipe from stdin (`echo "cmd" | jotun new`).
-- **Clipboard Sync**: One-command copy/paste (`jotun cp` / `jotun paste`) for Wayland and X11.
-- **Fast Search**: Instant full-text search powered by SQLite FTS5.
-- **Local First**: Everything is stored in a single SQLite database on your machine.
-- **Default Editor**: Edit notes in your preferred `$EDITOR` (vim, nano, etc.).
-
----
-
-## 🏗 Tech Stack
-
-- **Language**: [Rust](https://www.rust-lang.org/)
-- **Database**: [SQLite](https://www.sqlite.org/) (via [rusqlite](https://github.com/rusqlite/rusqlite))
-- **CLI Framework**: [clap](https://github.com/clap-rs/clap)
-- **Styling**: [colored](https://github.com/colored-rs/colored)
+- **Lightning Fast**: Built in Pure Rust with a SQLite FTS5 backend.
+- **Clipboard Native**: First-class support for Wayland (`wl-copy`) and X11 (`xclip`).
+- **Zero Friction**: Pipe from stdin, capture from args, or use the interactive UI.
+- **Local First**: Your data stays on your machine. Always.
+- **Minimalist**: 100% terminal focused. No bloat, no unnecessary UI.
 
 ---
 
 ## ⚡ Quick Start
 
 ```bash
-# Save a command you always forget
-jotun new "deploy to production: kubectl rollout restart..."
+# Enter the interactive dashboard
+jotun dash
 
-# Copy it to your clipboard for use
+# Save a quick command from anywhere
+jotun new "kubectl get pods --all-namespaces"
+
+# Copy Note #1 back to your clipboard
 jotun cp 1
 ```
 
@@ -78,7 +69,6 @@ jotun cp 1
 ## 📦 Installation
 
 ### 1. The Developer Way (Recommended)
-If you have Rust installed, this is the fastest way to get Jotun:
 ```bash
 cargo install jotun
 ```
@@ -88,10 +78,9 @@ cargo install jotun
 curl -sSL https://raw.githubusercontent.com/dev-Aatif/jot/main/install.sh | bash
 ```
 
-### 3. Manual (From Source)
+### 3. Manual Build
 ```bash
-git clone https://github.com/dev-Aatif/jot
-cd jot
+git clone https://github.com/dev-Aatif/jot && cd jot
 cargo build --release
 cp target/release/jotun ~/.local/bin/
 ```
@@ -100,46 +89,30 @@ cp target/release/jotun ~/.local/bin/
 
 ## 🧠 Usage
 
-### Global Options
-| Example | Action |
+### Global Interface
+| Command | Action |
 | :--- | :--- |
-| `jotun` | Print usage summary. |
-| `jotun -h` | Print quick-reference help. |
-| `jotun --help` | Print verbose documentation of all commands. |
+| `jotun dash` | **Launch the Interactive Dashboard (v0.2.0)** |
+| `jotun -h / --help` | Display quick/full help metadata. |
 
 ---
 
-### Command Summary
-
-- `jotun dash` – Launch the interactive TUI dashboard.
+### CLI Subcommands
 - `jotun new [text]` – Save a new note (reads from stdin if no text provided).
-- `jotun ls` – List all notes with IDs and previews.
-- `jotun show [id]` – Display the full content of a specific note.
-- `jotun find [query]` – Search notes using SQLite FTS5.
-- `jotun edit [id]` – Open a note in your system's `$EDITOR`.
-- `jotun cp [id]` – Copy a note's body to the clipboard.
-- `jotun paste` – Create a new note from your clipboard content.
-- `jotun rm [id]` – Delete a note (with `-f` to skip confirmation).
+- `jotun ls` – List notes with previews.
+- `jotun show [id]` – Full note display.
+- `jotun find [query]` – Global search.
+- `jotun edit [id]` – Open in system editor.
+- `jotun cp [id]` – Copy to clipboard.
+- `jotun paste` – Create note from clipboard.
+- `jotun rm [id]` – Delete note.
 
 ---
 
 ## ⚙️ Configuration
 
-Set the `JOTUN_DB_PATH` environment variable to override the default database location:
+Override the default database location with `JOTUN_DB_PATH`:
 - **Default:** `~/.local/share/jotun/jotun.db`
-
----
-
-## 🗂 Project Structure
-
-```text
-├── Cargo.toml      # Build & Dependency manifest
-├── README.md       # Professional documentation
-├── src/
-│   ├── main.rs     # CLI Entry point & Router
-│   └── db.rs       # SQLite & Search engine logic
-└── tests/          # Integration tests
-```
 
 ---
 
@@ -155,14 +128,9 @@ cargo test
 ## 🛣 Roadmap
 
 - [x] V0.1.0: Core CLI (Stable)
-- [x] V0.2.0: Interactive TUI Dashboard
+- [x] V0.2.0: Interactive TUI Dashboard (Current)
 - [ ] V0.3.0: Tagging & Categorization
-
----
-
-## 🚀 What's Next?
-
-Our **V1.0 Goal** is a full interactive TUI dashboard. Imagine a system as premium as `btop` but for managing thousands of code snippets, notes, and task lists, all powered by our lightning-fast search engine.
+- [ ] V0.4.0: Insights & Statistics Dashboard
 
 ---
 

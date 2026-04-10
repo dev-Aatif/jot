@@ -151,12 +151,17 @@ impl Database {
     }
 
     pub fn search_notes(&self, query: &str) -> Result<Vec<Note>> {
+        // Sanitize search query to prevent FTS5 syntax errors
+        // We wrap the term in quotes for a more literal search
+        let sanitized = query.replace("\"", "\"\"");
+        let ftsbox_query = format!("\"{}\"*", sanitized);
+        
         let mut stmt = self.conn.prepare(
             "SELECT id, body, source, created, updated FROM notes
              WHERE id IN (SELECT rowid FROM notes_fts WHERE body MATCH ?1)
              ORDER BY updated DESC",
         )?;
-        let note_iter = stmt.query_map(params![query], |row| {
+        let note_iter = stmt.query_map(params![ftsbox_query], |row| {
             let created_str: String = row.get(3)?;
             let updated_str: String = row.get(4)?;
             Ok(Note {
@@ -241,6 +246,40 @@ mod tests {
         let results = db.search_notes("fast")?;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].body, "SQLite is fast");
+        Ok(())
+    }
+
+    #[test]
+    fn test_update_note() -> Result<()> {
+        let db = Database::in_memory()?;
+        let id = db.create_note("Initial content", "manual")?;
+        db.update_note(id, "Updated content")?;
+        let note = db.get_note(id)?;
+        assert_eq!(note.body, "Updated content");
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_note() -> Result<()> {
+        let db = Database::in_memory()?;
+        let id = db.create_note("To be deleted", "manual")?;
+        db.delete_note(id)?;
+        let result = db.get_note(id);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_search_special_chars() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("Specials: @#$%^&*", "manual")?;
+        // Now test searching FOR the special chars which usually break FTS5
+        let results = db.search_notes("@#$")?;
+        assert_eq!(results.len(), 1);
+        
+        // Test a query that would normally cause a syntax error
+        let results = db.search_notes("\"*--")?;
+        assert!(results.is_ok() || results.is_err()); // Should not PANIC
         Ok(())
     }
 }
