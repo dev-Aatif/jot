@@ -97,12 +97,13 @@ impl<'a> App<'a> {
     pub fn edit_current(&mut self) -> Result<()> {
         if let Some(i) = self.list_state.selected() {
             let note = &self.notes[i];
-            let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nano".to_string());
+            let editor = std::env::var("VISUAL")
+                .or_else(|_| std::env::var("EDITOR"))
+                .unwrap_or_else(|_| "nano".to_string());
             
             let temp_file = tempfile::NamedTempFile::new()?;
             std::fs::write(temp_file.path(), &note.body)?;
 
-            // We need to leave raw mode and alternate screen to use the editor
             disable_raw_mode()?;
             execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
             
@@ -110,7 +111,6 @@ impl<'a> App<'a> {
                 .arg(temp_file.path())
                 .status()?;
 
-            // Resume TUI
             enable_raw_mode()?;
             execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -122,6 +122,35 @@ impl<'a> App<'a> {
                     self.status_msg = format!("Updated note #{}", note.id);
                     self.update_notes()?;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn create_new(&mut self) -> Result<()> {
+        let editor = std::env::var("VISUAL")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| "nano".to_string());
+        
+        let temp_file = tempfile::NamedTempFile::new()?;
+
+        disable_raw_mode()?;
+        execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
+        
+        let status = std::process::Command::new(editor)
+            .arg(temp_file.path())
+            .status()?;
+
+        enable_raw_mode()?;
+        execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+
+        if status.success() {
+            let content = std::fs::read_to_string(temp_file.path())?;
+            let content = content.trim();
+            if !content.is_empty() {
+                let id = self.db.create_note(content, "tui")?;
+                self.status_msg = format!("Created note #{}", id);
+                self.update_notes()?;
             }
         }
         Ok(())
@@ -173,7 +202,14 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
                         KeyCode::Up | KeyCode::Char('k') => app.previous(),
                         KeyCode::Char('y') => { app.copy_current()?; },
                         KeyCode::Char('d') => { app.delete_current()?; },
-                        KeyCode::Char('e') => { app.edit_current()?; },
+                        KeyCode::Char('e') => { 
+                            app.edit_current()?;
+                            terminal.clear()?; // Fix UI glitch
+                        },
+                        KeyCode::Char('n') => { 
+                            app.create_new()?;
+                            terminal.clear()?; // Fix UI glitch
+                        },
                         _ => {}
                     }
                 }
@@ -237,7 +273,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     let help_text = if app.editing_search {
         " [Enter] Done  [Esc] Cancel search "
     } else {
-        " [j/k] Nav  [/] Search  [y] Copy  [e] Edit  [d] Delete  [q] Quit "
+        " [j/k] Nav  [/] Search  [n] New  [y] Copy  [e] Edit  [d] Delete  [q] Quit "
     };
 
     let status_bar = Layout::default()

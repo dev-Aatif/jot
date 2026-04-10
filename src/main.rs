@@ -131,7 +131,9 @@ fn main() -> Result<()> {
         }
         Commands::Edit { id } => {
             let note = db.get_note(id)?;
-            let editor = std::env::var("EDITOR").unwrap_or_else(|_| "nano".to_string());
+            let editor = std::env::var("VISUAL")
+                .or_else(|_| std::env::var("EDITOR"))
+                .unwrap_or_else(|_| "nano".to_string());
             
             let temp_file = tempfile::NamedTempFile::new()?;
             std::fs::write(temp_file.path(), &note.body)?;
