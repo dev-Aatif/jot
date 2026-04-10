@@ -111,6 +111,7 @@ cp target/release/jotun ~/.local/bin/
 
 ### Command Summary
 
+- `jotun dash` – Launch the interactive TUI dashboard.
 - `jotun new [text]` – Save a new note (reads from stdin if no text provided).
 - `jotun ls` – List all notes with IDs and previews.
 - `jotun show [id]` – Display the full content of a specific note.
@@ -154,8 +155,8 @@ cargo test
 ## 🛣 Roadmap
 
 - [x] V0.1.0: Core CLI (Stable)
-- [ ] V0.2.0: Tagging & Categorization
-- [ ] V0.3.0: macOS Clipboard support
+- [x] V0.2.0: Interactive TUI Dashboard
+- [ ] V0.3.0: Tagging & Categorization
 
 ---
 

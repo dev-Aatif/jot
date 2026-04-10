@@ -1,4 +1,5 @@
 mod db;
+mod tui;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
@@ -58,6 +59,8 @@ enum Commands {
     },
     /// Create a new note from the current clipboard content
     Paste,
+    /// Launch the interactive TUI dashboard
+    Dash,
 }
 
 fn main() -> Result<()> {
@@ -175,6 +178,9 @@ fn main() -> Result<()> {
             }
             let id = db.create_note(&content, "clipboard")?;
             println!("{} Jotun: Saved note #{} from clipboard.", "✓".green(), id);
+        }
+        Commands::Dash => {
+            tui::run_tui(&db)?;
         }
     }
 
