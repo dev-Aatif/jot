@@ -1,8 +1,8 @@
 <div align="center">
   
-# 🚀 JOTUN (v0.2.0)
+# 🚀 JOTUN (v0.3.0)
 
-**The lightning-fast, terminal-native note manager. Capture at the speed of thought. Retrieve at the speed of Rust.**
+**The lightning-fast, terminal-native personal knowledge base. Capture at the speed of thought. Organize with hierarchical power.**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-333333?style=for-the-badge&logo=opensourceinitiative" alt="License"></a>
@@ -27,100 +27,78 @@
 
 ---
 
-## 🆕 New in v0.2.0: The Interactive Dashboard
-Jotun isn't just a CLI tool anymore. v0.2.0 introduces a **vibrant, btop-inspired TUI dashboard** that turns your note-taking into a high-speed command center.
+## 🆕 New in v0.3.0: Hierarchical Knowledge & Performance
+v0.3.0 transforms Jotun from a simple note-taker into a structured personal knowledge base.
 
-- **Immersive Sidebar**: Browse your notes with Vim-style `j/k` navigation.
-- **Instant Preview**: See full note content instantly as you scroll.
-- **Dynamic Search**: Type `/` to filter your entire database in real-time.
-- **One-Key Actions**: 
-  - `n` — Create a new note without leaving the dashboard.
-  - `y` — Copy current note to clipboard.
-  - `e` — Edit note in your preferred `$EDITOR`.
-  - `d` — Delete with confirmation.
+- **Hierarchical Tagging**: Organize notes with nested paths (e.g., `work/project-a`, `personal/finance`).
+- **Three-Pane Dashboard**: A new high-efficiency TUI with a dedicated Tags Sidebar and Note Navigator.
+- **Syntax Highlighting**: Beautiful, high-performance Markdown rendering in the preview pane.
+- **Note Titles**: Explicit titles for your notes with smart fallbacks to body content.
+- **Safe Editor Fallback**: Never crash again—Jotun intelligently falls back to `nano` if your preferred editor (like `nvim`) isn't available.
+
+---
+
+## 🚀 Performance: The Weight Class
+Jotun is engineered for systems where every megabyte counts. It lives in your RAM like it's not even there.
+
+| Editor | Platform | RAM Usage (Idle) |
+| :--- | :--- | :--- |
+| **Jotun** | **CLI/TUI** | **< 10 MB** |
+| Neovim / Vim | CLI | 20 MB - 70 MB |
+| Obsidian | GUI (Electron) | 400 MB - 900 MB |
+| VS Code | GUI (Electron) | 600 MB - 1.5 GB |
+| Logseq | GUI (Electron) | 500 MB - 1 GB |
 
 ---
 
 ## ✨ Features
 
 - **Lightning Fast**: Built in Pure Rust with a SQLite FTS5 backend.
+- **Metadata Aware**: Automatically tracks `source`, `created`, and `updated` timestamps.
 - **Clipboard Native**: First-class support for Wayland (`wl-copy`) and X11 (`xclip`).
-- **Zero Friction**: Pipe from stdin, capture from args, or use the interactive UI.
 - **Local First**: Your data stays on your machine. Always.
 - **Minimalist**: 100% terminal focused. No bloat, no unnecessary UI.
 
 ---
 
-## ⚡ Quick Start
-
-```bash
-# Enter the interactive dashboard
-jotun dash
-
-# Save a quick command from anywhere
-jotun new "kubectl get pods --all-namespaces"
-
-# Copy Note #1 back to your clipboard
-jotun cp 1
-```
-
----
-
-## 📦 Installation
-
-### 1. The Developer Way (Recommended)
-```bash
-cargo install jotun
-```
-
-### 2. The One-Liner (Pre-built Binary)
-```bash
-curl -sSL https://raw.githubusercontent.com/dev-Aatif/jot/main/install.sh | bash
-```
-
-### 3. Manual Build
-```bash
-git clone https://github.com/dev-Aatif/jot && cd jot
-cargo build --release
-cp target/release/jotun ~/.local/bin/
-```
-
----
-
 ## 🧠 Usage
 
-### Global Interface
+### CLI Power-User Commands
+```bash
+# Create a note with metadata
+jotun new "Fix login bug" --title "Auth Fix" -t work/jotun -t critical
+
+# List notes in a specific tag hierarchy
+jotun ls --tag work
+
+# View all unique tags
+jotun tags
+```
+
+### Subcommands Reference
 | Command | Action |
 | :--- | :--- |
-| `jotun dash` | **Launch the Interactive Dashboard (v0.2.0)** |
-| `jotun -h / --help` | Display quick/full help metadata. |
-
----
-
-### CLI Subcommands
-- `jotun new [text]` – Save a new note (reads from stdin if no text provided).
-- `jotun ls` – List notes with previews.
-- `jotun show [id]` – Full note display.
-- `jotun find [query]` – Global search.
-- `jotun edit [id]` – Open in system editor.
-- `jotun cp [id]` – Copy to clipboard.
-- `jotun paste` – Create note from clipboard.
-- `jotun rm [id]` – Delete note.
+| `jotun dash` | Launch the **Three-Pane Interactive Dashboard**. |
+| `jotun new [text]` | Save a note (reads from stdin if text is missing). |
+| `jotun ls [-t tag]` | List notes with hierarchical tag filtering. |
+| `jotun tags` | Display all unique tags in a tree-like list. |
+| `jotun show [id]` | Full note display with complete metadata. |
+| `jotun find [query]` | Global FTS5 full-text search across titles and bodies. |
 
 ---
 
 ## ⚙️ Configuration
 
-Override the default database location with `JOTUN_DB_PATH`:
-- **Default:** `~/.local/share/jotun/jotun.db`
+Jotun creates a default configuration file at `~/.config/jotun/config.toml` on its first run.
 
----
+```toml
+editor = "nvim"                # Your preferred system editor
+syntax_highlighting = true     # Toggle Markdown highlighting in TUI
 
-## 🧪 Testing
-
-```bash
-# Run the local test suite
-cargo test
+[theme]
+active_border = "yellow"       # Color for the active pane
+highlight_bg = "cyan"          # Selection background color
+highlight_fg = "black"         # Selection text color
 ```
 
 ---
@@ -128,15 +106,10 @@ cargo test
 ## 🛣 Roadmap
 
 - [x] V0.1.0: Core CLI (Stable)
-- [x] V0.2.0: Interactive TUI Dashboard (Current)
-- [ ] V0.3.0: Tagging & Categorization
+- [x] V0.2.0: Interactive TUI Dashboard
+- [x] V0.3.0: Hierarchical Tagging & Titles (Completed)
 - [ ] V0.4.0: Insights & Statistics Dashboard
-
----
-
-## 🤝 Contributing
-
-We welcome your PRs and bug reports in the [issue tracker](https://github.com/dev-Aatif/jot/issues)!
+- [ ] V0.5.0: Encryption & Secure Notes
 
 ---
 

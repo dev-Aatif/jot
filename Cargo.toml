@@ -15,5 +15,8 @@ colored = "2.1"
 chrono = "0.4"
 dirs = "5.0"
 tempfile = "3.10"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+syntect = "5.2"
 ratatui = { version = "0.26", features = ["crossterm"] }
 crossterm = { version = "0.27", features = ["events"] }

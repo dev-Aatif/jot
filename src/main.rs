@@ -1,10 +1,12 @@
 mod db;
 mod tui;
+mod config;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use colored::*;
 use db::Database;
+use config::Config;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::Command;
@@ -23,12 +25,22 @@ enum Commands {
     New {
         /// The content of the note. If omitted, reads from stdin.
         text: Option<String>,
+        /// Optional title for the note.
+        #[arg(long)]
+        title: Option<String>,
+        /// Hierarchical tags (e.g. "work/proj1"). Can be used multiple times.
+        #[arg(short, long)]
+        tag: Vec<String>,
         /// Optional source tag for the note.
         #[arg(short, long, default_value = "manual")]
         source: String,
     },
     /// List all notes
-    Ls,
+    Ls {
+        /// Filter by tag (supports hierarchical search, e.g. "work" matches "work/p1")
+        #[arg(short, long)]
+        tag: Option<String>,
+    },
     /// View a specific note
     Show {
         /// The ID of the note to show.
@@ -59,17 +71,20 @@ enum Commands {
     },
     /// Create a new note from the current clipboard content
     Paste,
+    /// List all unique tags
+    Tags,
     /// Launch the interactive TUI dashboard
     Dash,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let db_path = get_db_path()?;
+    let config = Config::load().unwrap_or_default();
+    let db_path = get_db_path(&config)?;
     let db = Database::new(db_path)?;
 
     match cli.command {
-        Commands::New { text, source } => {
+        Commands::New { text, title, tag, source } => {
             let content = match text {
                 Some(t) => t,
                 None => {
@@ -81,35 +96,63 @@ fn main() -> Result<()> {
             if content.is_empty() {
                 return Err(anyhow!("Note content cannot be empty."));
             }
-            let id = db.create_note(&content, &source)?;
+            let id = db.create_note(&content, title.as_deref(), &source, &tag)?;
             println!("{} Jotun: Saved note #{}", "✓".green(), id);
         }
-        Commands::Ls => {
-            let notes = db.list_notes()?;
+        Commands::Ls { tag } => {
+            let notes = if let Some(t) = tag {
+                db.find_by_tag(&t)?
+            } else {
+                db.list_notes()?
+            };
+
             if notes.is_empty() {
-                println!("No notes found. Create one with `jotun new \"text\"`.");
+                println!("No notes found.");
                 return Ok(());
             }
-            println!("{}", "Note ID | Created | Preview".dimmed());
+
+            println!("{}", "Note ID | Created | Title / Tags | Preview".dimmed());
             for note in notes {
-                let preview = note.body.lines().next().unwrap_or("").chars().take(50).collect::<String>();
-                let created_fmt = note.created.format("%Y-%m-%d %H:%M").to_string();
+                let display_title = match &note.title {
+                    Some(t) => t.clone(),
+                    None => note.body.lines().next().unwrap_or("").chars().take(20).collect::<String>(),
+                };
+                
+                let tags_fmt = if note.tags.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(" [{}]", note.tags.join(", ")).yellow().to_string()
+                };
+
+                let preview = note.body.lines().next().unwrap_or("").chars().take(40).collect::<String>();
+                let created_fmt = note.created.format("%m-%d %H:%M").to_string();
+                
                 println!(
-                    "{} | {} | {}",
+                    "{} | {} | {}{} | {}",
                     note.id.to_string().bold().cyan(),
                     created_fmt.dimmed(),
-                    preview
+                    display_title.bold(),
+                    tags_fmt,
+                    preview.dimmed()
                 );
             }
         }
         Commands::Show { id } => {
             let note = db.get_note(id)?;
             println!(
-                "{} #{} ({})",
+                "{} #{} - {} ({})",
                 "Jotun Note".bold().cyan(),
                 note.id,
+                note.title.as_deref().unwrap_or("Untitled").bold(),
                 note.created.format("%Y-%m-%d %H:%M").to_string().dimmed()
             );
+            println!("{} {} | {} {}", 
+                "Source:".dimmed(), note.source.yellow(),
+                "Updated:".dimmed(), note.updated.format("%Y-%m-%d %H:%M").to_string().dimmed()
+            );
+            if !note.tags.is_empty() {
+                println!("{} {}", "Tags:".dimmed(), note.tags.join(", ").yellow());
+            }
             println!("{}", "-".repeat(40).dimmed());
             println!("{}", note.body);
         }
@@ -121,32 +164,44 @@ fn main() -> Result<()> {
             }
             println!("{} Jotun: Found {} results:", "✓".green(), notes.len());
             for note in notes {
-                let preview = note.body.lines().next().unwrap_or("").chars().take(50).collect::<String>();
+                let title = note.title.as_deref().unwrap_or("Untitled");
                 println!(
                     "{} | {}",
                     note.id.to_string().bold().cyan(),
-                    preview
+                    title.bold()
                 );
             }
         }
         Commands::Edit { id } => {
             let note = db.get_note(id)?;
-            let editor = std::env::var("VISUAL")
-                .or_else(|_| std::env::var("EDITOR"))
-                .unwrap_or_else(|_| "nano".to_string());
+            let preferred_editor = config.editor.clone()
+                .or_else(|| std::env::var("VISUAL").ok())
+                .or_else(|| std::env::var("EDITOR").ok())
+                .unwrap_or_else(|| "nano".to_string());
             
             let temp_file = tempfile::NamedTempFile::new()?;
             std::fs::write(temp_file.path(), &note.body)?;
 
-            let status = Command::new(editor)
+            let status = Command::new(&preferred_editor)
                 .arg(temp_file.path())
-                .status()?;
+                .status();
+
+            let status = match status {
+                Ok(s) => s,
+                Err(_) if preferred_editor != "nano" => {
+                    println!("{} Preferred editor '{}' not found. Falling back to nano...", "!".yellow(), preferred_editor);
+                    Command::new("nano")
+                        .arg(temp_file.path())
+                        .status()?
+                }
+                Err(e) => return Err(anyhow!("Failed to launch editor: {}", e)),
+            };
 
             if status.success() {
                 let updated_body = std::fs::read_to_string(temp_file.path())?;
                 let updated_body = updated_body.trim();
                 if updated_body != note.body {
-                    db.update_note(id, updated_body)?;
+                    db.update_note(id, updated_body, note.title.as_deref(), &note.tags)?;
                     println!("{} Jotun: Updated note #{}", "✓".green(), id);
                 } else {
                     println!("No changes made.");
@@ -178,18 +233,33 @@ fn main() -> Result<()> {
             if content.is_empty() {
                 return Err(anyhow!("Clipboard is empty."));
             }
-            let id = db.create_note(&content, "clipboard")?;
+            let id = db.create_note(&content, None, "clipboard", &[])?;
             println!("{} Jotun: Saved note #{} from clipboard.", "✓".green(), id);
         }
+        Commands::Tags => {
+            let tags = db.list_all_tags()?;
+            if tags.is_empty() {
+                println!("No tags found.");
+                return Ok(());
+            }
+            println!("{}", "Jotun Tags:".bold().cyan());
+            for tag in tags {
+                println!("  • {}", tag.yellow());
+            }
+        }
         Commands::Dash => {
-            tui::run_tui(&db)?;
+            tui::run_tui(&db, &config)?;
         }
     }
 
     Ok(())
 }
 
-fn get_db_path() -> Result<PathBuf> {
+fn get_db_path(config: &Config) -> Result<PathBuf> {
+    if let Some(path) = &config.db_path {
+        return Ok(PathBuf::from(path));
+    }
+
     if let Ok(p) = std::env::var("JOTUN_DB_PATH") {
         return Ok(PathBuf::from(p));
     }
@@ -243,3 +313,4 @@ fn get_from_clipboard() -> Result<String> {
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
+
