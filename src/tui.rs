@@ -342,6 +342,16 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
 }
 
 fn parse_color(color: &str) -> Color {
+    let color = color.trim();
+    if color.starts_with('#') && color.len() == 7 {
+        if let Ok(r) = u8::from_str_radix(&color[1..3], 16) {
+            if let Ok(g) = u8::from_str_radix(&color[3..5], 16) {
+                if let Ok(b) = u8::from_str_radix(&color[5..7], 16) {
+                    return Color::Rgb(r, g, b);
+                }
+            }
+        }
+    }
     match color.to_lowercase().as_str() {
         "black" => Color::Black,
         "red" => Color::Red,

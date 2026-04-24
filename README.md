@@ -96,9 +96,9 @@ editor = "nvim"                # Your preferred system editor
 syntax_highlighting = true     # Toggle Markdown highlighting in TUI
 
 [theme]
-active_border = "yellow"       # Color for the active pane
-highlight_bg = "cyan"          # Selection background color
-highlight_fg = "black"         # Selection text color
+active_border = "#FF007F"       # Color for the active pane
+highlight_bg = "black"         # Selection background color
+highlight_fg = "cyan"          # Selection text color
 ```
 
 ---

@@ -25,9 +25,9 @@ impl Default for Config {
             db_path: None,
             syntax_highlighting: Some(true),
             theme: ThemeConfig {
-                active_border: "yellow".to_string(),
-                highlight_bg: "cyan".to_string(),
-                highlight_fg: "black".to_string(),
+                active_border: "#FF007F".to_string(),
+                highlight_bg: "black".to_string(),
+                highlight_fg: "cyan".to_string(),
             },
         }
     }
@@ -58,5 +58,17 @@ impl Config {
         path.push("jotun");
         path.push("config.toml");
         Ok(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let config = Config::default();
+        assert_eq!(config.syntax_highlighting, Some(true));
+        assert_eq!(config.theme.active_border, "#FF007F");
     }
 }

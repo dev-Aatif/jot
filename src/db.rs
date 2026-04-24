@@ -397,5 +397,16 @@ mod tests {
         assert_eq!(note.tags, vec!["new".to_string()]);
         Ok(())
     }
+
+    #[test]
+    fn test_list_all_tags() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("1", None, "m", &["b".to_string(), "a".to_string()])?;
+        db.create_note("2", None, "m", &["c".to_string(), "a".to_string()])?;
+        
+        let tags = db.list_all_tags()?;
+        assert_eq!(tags, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        Ok(())
+    }
 }
 
