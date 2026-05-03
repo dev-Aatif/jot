@@ -24,7 +24,6 @@ pub struct Statistics {
     pub tag_count: i64,
     pub top_tags: Vec<(String, i64)>,
     pub top_sources: Vec<(String, i64)>,
-    pub notes_last_7_days: Vec<(String, i64)>,
 }
 
 pub struct Database {
@@ -392,17 +391,6 @@ impl Database {
         let top_sources = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<Result<Vec<_>, _>>()?;
 
-        // Notes created in the last 7 days
-        let mut stmt = self.conn.prepare(
-            "SELECT date(created) as day, count(*) as count 
-             FROM notes 
-             WHERE created > date('now', '-7 days')
-             GROUP BY day 
-             ORDER BY day ASC",
-        )?;
-        let notes_last_7_days = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<Result<Vec<_>, _>>()?;
-
         Ok(Statistics {
             total_notes,
             total_chars,
@@ -410,7 +398,6 @@ impl Database {
             tag_count,
             top_tags,
             top_sources,
-            notes_last_7_days,
         })
     }
 }

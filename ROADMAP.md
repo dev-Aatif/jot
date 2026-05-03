@@ -3,9 +3,10 @@
 - [x] V0.1.0: Core CLI (Stable)
 - [x] V0.2.0: Interactive TUI Dashboard
 - [x] V0.3.0: Hierarchical Tagging & Titles (Completed)
-- [/] V0.4.0: Insights & Statistics Dashboard (In Progress)
-  - CLI `jot stats` command.
-  - TUI Insights Overlay (Total notes, Tag distribution, Activity over time).
+- [x] V0.4.0: Insights & Statistics Dashboard (Completed)
+  - CLI `jot stats` command with Penguin ASCII art.
+  - TUI Insights Dashboard with htop-style gauges and recent notes table.
+  - Dracula theme integration.
 - [ ] V0.5.0: Encryption & Secure Notes
   - Password-protected note bodies.
   - Encrypted SQLite database at rest.
