@@ -69,6 +69,6 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert_eq!(config.syntax_highlighting, Some(true));
-        assert_eq!(config.theme.active_border, "#FF007F");
+        assert_eq!(config.theme.active_border, "#bd93f9");
     }
 }

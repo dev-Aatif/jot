@@ -630,7 +630,7 @@ mod tests {
         db.create_note("Note 1", None, "test", &[])?;
         db.create_note("Note 2", None, "test", &[])?;
         
-        let mut app = App::new(&db, &config)?;
+        let mut app = App::new(&db, &config, PathBuf::from("test.db"))?;
         assert_eq!(app.notes.len(), 2);
         assert_eq!(app.list_state.selected(), Some(0));
 
@@ -653,7 +653,7 @@ mod tests {
         db.create_note("Apple", None, "test", &[])?;
         db.create_note("Banana", None, "test", &[])?;
         
-        let mut app = App::new(&db, &config)?;
+        let mut app = App::new(&db, &config, PathBuf::from("test.db"))?;
         app.search_query = String::from("Apple");
         app.update_notes()?;
         
