@@ -1,0 +1,23 @@
+## 🛣 Roadmap
+
+- [x] V0.1.0: Core CLI (Stable)
+- [x] V0.2.0: Interactive TUI Dashboard
+- [x] V0.3.0: Hierarchical Tagging & Titles (Completed)
+- [/] V0.4.0: Insights & Statistics Dashboard (In Progress)
+  - CLI `jot stats` command.
+  - TUI Insights Overlay (Total notes, Tag distribution, Activity over time).
+- [ ] V0.5.0: Encryption & Secure Notes
+  - Password-protected note bodies.
+  - Encrypted SQLite database at rest.
+- [ ] V0.6.0: Cloud Syncing & Backup
+  - Automatic backup to Git or S3-compatible storage.
+  - Multi-device syncing.
+- [ ] V0.7.0: Plugin System & Extensibility
+  - Lua/WASM plugin engine for custom commands and formatting.
+- [ ] V0.8.0: Advanced TUI & Editor Features
+  - Vim-like keybindings, custom layouts, and split views.
+- [ ] V0.9.0: Multi-Format Export & API
+  - Export to PDF, HTML, and Markdown.
+  - Local JSON API for external integrations.
+- [ ] V1.0.0: Stable Release
+  - Complete documentation, cross-platform binaries, and package manager support.

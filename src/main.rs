@@ -73,6 +73,8 @@ enum Commands {
     Paste,
     /// List all unique tags
     Tags,
+    /// View note statistics
+    Stats,
     /// Launch the interactive TUI dashboard
     Dash,
 }
@@ -81,7 +83,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = Config::load().unwrap_or_default();
     let db_path = get_db_path(&config)?;
-    let db = Database::new(db_path)?;
+    let db = Database::new(db_path.clone())?;
 
     match cli.command {
         Commands::New { text, title, tag, source } => {
@@ -247,8 +249,46 @@ fn main() -> Result<()> {
                 println!("  • {}", tag.yellow());
             }
         }
+        Commands::Stats => {
+            let stats = db.get_statistics()?;
+            let art = r#"
+    .--.
+   |o_o |
+   |:_/ |
+  //   \ \
+ (|     | )
+/'\_   _/`\
+\___)=(___/
+            "#;
+            
+            let lines: Vec<&str> = art.lines().filter(|s| !s.is_empty()).collect();
+            let mut info = Vec::new();
+            info.push(format!("{} {}", "jotun".bright_green().bold(), "v0.4.0".dimmed()));
+            info.push("-".repeat(20).dimmed().to_string());
+            info.push(format!("{} {}", "Notes:".bright_purple(), stats.total_notes));
+            info.push(format!("{} {}", "Tags: ".bright_purple(), stats.tag_count));
+            info.push(format!("{} {:.1} KB", "Size: ".bright_purple(), stats.total_chars as f64 / 1024.0));
+            info.push(format!("{} {}", "Loc:  ".bright_purple(), db_path.to_string_lossy().dimmed()));
+            
+            println!("");
+            for i in 0..lines.len().max(info.len()) {
+                let art_part = if i < lines.len() { lines[i].bright_cyan().bold().to_string() } else { " ".repeat(12) };
+                let info_part = if i < info.len() { &info[i] } else { "" };
+                println!("  {:<15} {}", art_part, info_part);
+            }
+
+            if !stats.top_tags.is_empty() {
+                println!("\n  {}", "── Top Tags ──".bright_cyan());
+                for (tag, count) in &stats.top_tags {
+                    let percent = (*count as f64 / stats.total_notes as f64 * 100.0).min(100.0);
+                    let bar = "█".repeat((percent / 4.0) as usize);
+                    println!("  {:<10} {} {}%", tag.yellow(), bar.bright_yellow(), percent as u32);
+                }
+            }
+            println!("");
+        }
         Commands::Dash => {
-            tui::run_tui(&db, &config)?;
+            tui::run_tui(&db, &config, db_path)?;
         }
     }
 

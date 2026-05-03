@@ -25,9 +25,9 @@ impl Default for Config {
             db_path: None,
             syntax_highlighting: Some(true),
             theme: ThemeConfig {
-                active_border: "#FF007F".to_string(),
-                highlight_bg: "black".to_string(),
-                highlight_fg: "cyan".to_string(),
+                active_border: "#bd93f9".to_string(), // Purple
+                highlight_bg: "#44475a".to_string(), // Selection
+                highlight_fg: "#f8f8f2".to_string(), // Foreground
             },
         }
     }

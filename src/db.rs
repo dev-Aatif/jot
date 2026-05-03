@@ -16,6 +16,17 @@ pub struct Note {
     pub tags: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Statistics {
+    pub total_notes: i64,
+    pub total_chars: i64,
+    pub avg_note_length: f64,
+    pub tag_count: i64,
+    pub top_tags: Vec<(String, i64)>,
+    pub top_sources: Vec<(String, i64)>,
+    pub notes_last_7_days: Vec<(String, i64)>,
+}
+
 pub struct Database {
     conn: Connection,
 }
@@ -346,6 +357,62 @@ impl Database {
 
         Ok(())
     }
+
+    pub fn get_statistics(&self) -> Result<Statistics> {
+        let (total_notes, total_chars, avg_note_length): (i64, i64, f64) = self.conn.query_row(
+            "SELECT count(*), sum(length(body)), avg(length(body)) FROM notes",
+            [],
+            |row| Ok((row.get(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get::<_, Option<f64>>(2)?.unwrap_or(0.0))),
+        )?;
+
+        let tag_count: i64 = self.conn.query_row(
+            "SELECT count(*) FROM tags",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let mut stmt = self.conn.prepare(
+            "SELECT t.name, count(nt.note_id) as count 
+             FROM tags t 
+             JOIN note_tags nt ON t.id = nt.tag_id 
+             GROUP BY t.name 
+             ORDER BY count DESC 
+             LIMIT 5",
+        )?;
+        let top_tags = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut stmt = self.conn.prepare(
+            "SELECT source, count(*) as count 
+             FROM notes 
+             GROUP BY source 
+             ORDER BY count DESC 
+             LIMIT 5",
+        )?;
+        let top_sources = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Notes created in the last 7 days
+        let mut stmt = self.conn.prepare(
+            "SELECT date(created) as day, count(*) as count 
+             FROM notes 
+             WHERE created > date('now', '-7 days')
+             GROUP BY day 
+             ORDER BY day ASC",
+        )?;
+        let notes_last_7_days = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Statistics {
+            total_notes,
+            total_chars,
+            avg_note_length,
+            tag_count,
+            top_tags,
+            top_sources,
+            notes_last_7_days,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -406,6 +473,24 @@ mod tests {
         
         let tags = db.list_all_tags()?;
         assert_eq!(tags, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_statistics() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note("Note 1", None, "manual", &["work".to_string()])?;
+        db.create_note("Note 2", None, "tui", &["work".to_string(), "urgent".to_string()])?;
+        
+        let stats = db.get_statistics()?;
+        assert_eq!(stats.total_notes, 2);
+        assert_eq!(stats.tag_count, 2);
+        assert!(stats.total_chars > 0);
+        assert!(stats.avg_note_length > 0.0);
+        
+        let work_tag = stats.top_tags.iter().find(|(t, _)| t == "work").unwrap();
+        assert_eq!(work_tag.1, 2);
+        
         Ok(())
     }
 }

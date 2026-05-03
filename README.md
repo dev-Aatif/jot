@@ -15,7 +15,7 @@
   <a href="#🧠-usage"><strong>Explore the Docs »</strong></a>
   <br>
   <br>
-  <a href="https://github.com/dev-Aatif/jot">View Demo</a> ·
+  <a href="./ROADMAP.md"><strong>View Roadmap »</strong></a> ·
   <a href="https://github.com/dev-Aatif/jot/issues">Report Bug</a> ·
   <a href="https://github.com/dev-Aatif/jot/issues">Request Feature</a>
 </p>
@@ -105,11 +105,9 @@ highlight_fg = "cyan"          # Selection text color
 
 ## 🛣 Roadmap
 
-- [x] V0.1.0: Core CLI (Stable)
-- [x] V0.2.0: Interactive TUI Dashboard
-- [x] V0.3.0: Hierarchical Tagging & Titles (Completed)
-- [ ] V0.4.0: Insights & Statistics Dashboard
-- [ ] V0.5.0: Encryption & Secure Notes
+Jotun has an ambitious path ahead. From visual insights to full encryption and sync.
+
+👉 **[View the full Roadmap here](./ROADMAP.md)**
 
 ---
 

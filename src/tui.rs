@@ -11,10 +11,12 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph, Table, Row, Cell, Wrap},
     Frame, Terminal,
 };
+use ratatui::style::Stylize;
 use std::io;
+use std::path::PathBuf;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -40,10 +42,12 @@ pub struct App<'a> {
     active_pane: Pane,
     syntax_set: SyntaxSet,
     theme: Theme,
+    show_insights: bool,
+    db_path: PathBuf,
 }
 
 impl<'a> App<'a> {
-    pub fn new(db: &'a Database, config: &'a Config) -> Result<Self> {
+    pub fn new(db: &'a Database, config: &'a Config, db_path: PathBuf) -> Result<Self> {
         let notes = db.list_notes()?;
         let mut tags = vec!["All".to_string()];
         tags.extend(db.list_all_tags()?);
@@ -73,6 +77,8 @@ impl<'a> App<'a> {
             active_pane: Pane::Notes,
             syntax_set: ps,
             theme,
+            show_insights: false,
+            db_path,
         })
     }
 
@@ -279,14 +285,14 @@ impl<'a> App<'a> {
     }
 }
 
-pub fn run_tui(db: &Database, config: &Config) -> Result<()> {
+pub fn run_tui(db: &Database, config: &Config, db_path: PathBuf) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new(db, config)?;
+    let app = App::new(db, config, db_path)?;
     let res = run_app(&mut terminal, app);
 
     disable_raw_mode()?;
@@ -333,6 +339,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
                             app.create_new()?;
                             terminal.clear()?;
                         },
+                        KeyCode::Char('i') => app.show_insights = !app.show_insights,
                         _ => {}
                     }
                 }
@@ -399,119 +406,206 @@ fn ui(f: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::ALL).title("Jotun Search (Press '/' to type)"));
     f.render_widget(search, chunks[0]);
 
-    // 2. Main Body (Three Panes)
-    let body_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(20), // Tags
-            Constraint::Percentage(30), // Notes
-            Constraint::Percentage(50), // Content
-        ])
-        .split(chunks[1]);
-
-    // 2.1 Tags Sidebar
-    let tags_items: Vec<ListItem> = app.tags.iter()
-        .map(|t| ListItem::new(t.as_str()))
-        .collect();
-    
-    let tags_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Tags")
-        .border_style(if app.active_pane == Pane::Tags { Style::default().fg(active_color) } else { Style::default() });
-
-    let tags_list = List::new(tags_items)
-        .block(tags_block)
-        .highlight_style(Style::default().bg(highlight_bg).fg(highlight_fg).add_modifier(Modifier::BOLD))
-        .highlight_symbol("> ");
-    
-    f.render_stateful_widget(tags_list, body_chunks[0], &mut app.tag_state);
-
-    // 2.2 Notes List
-    let notes_items: Vec<ListItem> = app.notes.iter()
-        .map(|n| {
-            let title = match &n.title {
-                Some(t) => t.clone(),
-                None => n.body.lines().next().unwrap_or("").chars().take(20).collect::<String>(),
-            };
-            ListItem::new(format!("[{}] {}", n.id, title))
-        })
-        .collect();
-
-    let notes_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Notes")
-        .border_style(if app.active_pane == Pane::Notes { Style::default().fg(active_color) } else { Style::default() });
-
-    let notes_list = List::new(notes_items)
-        .block(notes_block)
-        .highlight_style(Style::default().bg(highlight_bg).fg(highlight_fg).add_modifier(Modifier::BOLD))
-        .highlight_symbol(">> ");
-
-    f.render_stateful_widget(notes_list, body_chunks[1], &mut app.list_state);
-
-    // 2.3 Content Viewer
-    let (content_text, meta_header) = if let Some(i) = app.list_state.selected() {
-        if i < app.notes.len() {
-            let note = &app.notes[i];
-            let tags = if note.tags.is_empty() {
-                "No tags".to_string()
-            } else {
-                note.tags.join(", ")
-            };
-            let meta = format!(
-                "Tags: {} | Source: {} | Updated: {}",
-                tags,
-                note.source,
-                note.updated.format("%Y-%m-%d %H:%M")
-            );
-            (note.body.as_str(), format!("{}\n{}", meta, "-".repeat(meta.len())))
-        } else { ("", "".to_string()) }
-    } else { ("", "".to_string()) };
-
-    let mut preview_lines = vec![
-        Line::from(Span::styled(meta_header, Style::default().add_modifier(Modifier::DIM))),
-        Line::from(""),
-    ];
-    
-    if app.config.syntax_highlighting.unwrap_or(true) && !content_text.is_empty() {
-        let syntax = app.syntax_set.find_syntax_by_extension("md").unwrap_or_else(|| app.syntax_set.find_syntax_plain_text());
-        let mut h = HighlightLines::new(syntax, &app.theme);
-        
-        for line in LinesWithEndings::from(content_text) {
-            let ranges: Vec<(syntect::highlighting::Style, &str)> = h.highlight_line(line, &app.syntax_set).unwrap_or_default();
-            let mut spans = vec![];
-            for (style, text) in ranges {
-                let fg = Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b);
-                spans.push(Span::styled(text.to_string(), Style::default().fg(fg)));
+    // 2. Main Body (Three Panes or Insights)
+    if app.show_insights {
+        let stats = match app.db.get_statistics() {
+            Ok(s) => s,
+            Err(_) => {
+                f.render_widget(Paragraph::new("Error loading statistics").block(Block::default().borders(Borders::ALL)), chunks[1]);
+                return;
             }
-            preview_lines.push(Line::from(spans));
+        };
+
+        let stats_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(10), // Top Dash
+                Constraint::Min(0),     // Latest Notes Table
+            ])
+            .split(chunks[1]);
+
+        let top_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(stats_chunks[0]);
+
+        // --- Left: Source Meters (htop style) ---
+        let source_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(2); stats.top_sources.len()])
+            .split(top_chunks[0]);
+
+        for (i, (source, count)) in stats.top_sources.iter().enumerate() {
+            if i >= source_layout.len() { break; }
+            let percent = (*count as f64 / stats.total_notes as f64 * 100.0).min(100.0);
+            let gauge = Gauge::default()
+                .block(Block::default().title(format!(" {} ", source.to_uppercase())))
+                .gauge_style(Style::default().fg(Color::Cyan).bg(Color::Rgb(68, 71, 90))) // Dracula selection bg
+                .percent(percent as u16)
+                .label(format!("{} / {}", count, stats.total_notes));
+            f.render_widget(gauge, source_layout[i]);
         }
+
+        // --- Right: Summary Stats (Card style) ---
+        let summary_text = vec![
+            Line::from(vec![Span::raw("Notes:   ").cyan(), stats.total_notes.to_string().bold().white()]),
+            Line::from(vec![Span::raw("Tags:    ").cyan(), stats.tag_count.to_string().bold().white()]),
+            Line::from(vec![Span::raw("Storage: ").cyan(), format!("{:.1} KB", stats.total_chars as f64 / 1024.0).bold().white()]),
+            Line::from(vec![Span::raw("Average: ").cyan(), format!("{:.0} chars", stats.avg_note_length).bold().white()]),
+            Line::from(""),
+            Line::from(vec![Span::raw("DB:      ").cyan(), app.db_path.to_string_lossy().to_string().dim()]),
+        ];
+        let summary = Paragraph::new(summary_text)
+            .block(Block::default().borders(Borders::ALL).title(" SYSTEM INFO "));
+        f.render_widget(summary, top_chunks[1]);
+
+        // --- Bottom: Latest Notes Table (htop process list style) ---
+        let header_cells = ["ID", "TITLE", "TAGS", "SOURCE", "UPDATED"]
+            .iter()
+            .map(|h| Cell::from(*h).style(Style::default().fg(Color::Rgb(255, 121, 198)).add_modifier(Modifier::BOLD))); // Pink
+        let header = Row::new(header_cells)
+            .style(Style::default().bg(Color::Rgb(68, 71, 90))) // Dracula selection
+            .height(1)
+            .bottom_margin(1);
+
+        let rows = app.notes.iter().take(10).map(|n| {
+            let cells = vec![
+                Cell::from(n.id.to_string()).fg(Color::Cyan),
+                Cell::from(n.title.as_deref().unwrap_or("Untitled")).bold(),
+                Cell::from(n.tags.join(", ")).fg(Color::Yellow),
+                Cell::from(n.source.clone()).fg(Color::Green),
+                Cell::from(n.updated.format("%Y-%m-%d %H:%M").to_string()).dim(),
+            ];
+            Row::new(cells).height(1)
+        });
+
+        let table = Table::new(rows, [
+            Constraint::Length(5),
+            Constraint::Percentage(30),
+            Constraint::Percentage(30),
+            Constraint::Length(10),
+            Constraint::Min(20),
+        ])
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title(" RECENT NOTES "));
+        f.render_widget(table, stats_chunks[1]);
+
     } else {
-        for line in content_text.lines() {
-            preview_lines.push(Line::from(line));
+        let body_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(20), // Tags
+                Constraint::Percentage(30), // Notes
+                Constraint::Percentage(50), // Content
+            ])
+            .split(chunks[1]);
+
+        // 2.1 Tags Sidebar
+        let tags_items: Vec<ListItem> = app.tags.iter()
+            .map(|t| ListItem::new(t.as_str()))
+            .collect();
+        
+        let tags_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Tags")
+            .border_style(if app.active_pane == Pane::Tags { Style::default().fg(active_color) } else { Style::default() });
+
+        let tags_list = List::new(tags_items)
+            .block(tags_block)
+            .highlight_style(Style::default().bg(highlight_bg).fg(highlight_fg).add_modifier(Modifier::BOLD))
+            .highlight_symbol("> ");
+        
+        f.render_stateful_widget(tags_list, body_chunks[0], &mut app.tag_state);
+
+        // 2.2 Notes List
+        let notes_items: Vec<ListItem> = app.notes.iter()
+            .map(|n| {
+                let title = match &n.title {
+                    Some(t) => t.clone(),
+                    None => n.body.lines().next().unwrap_or("").chars().take(20).collect::<String>(),
+                };
+                ListItem::new(format!("[{}] {}", n.id, title))
+            })
+            .collect();
+
+        let notes_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Notes")
+            .border_style(if app.active_pane == Pane::Notes { Style::default().fg(active_color) } else { Style::default() });
+
+        let notes_list = List::new(notes_items)
+            .block(notes_block)
+            .highlight_style(Style::default().bg(highlight_bg).fg(highlight_fg).add_modifier(Modifier::BOLD))
+            .highlight_symbol(">> ");
+
+        f.render_stateful_widget(notes_list, body_chunks[1], &mut app.list_state);
+
+        // 2.3 Content Viewer
+        let (content_text, meta_header) = if let Some(i) = app.list_state.selected() {
+            if i < app.notes.len() {
+                let note = &app.notes[i];
+                let tags = if note.tags.is_empty() {
+                    "No tags".to_string()
+                } else {
+                    note.tags.join(", ")
+                };
+                let meta = format!(
+                    "Tags: {} | Source: {} | Updated: {}",
+                    tags,
+                    note.source,
+                    note.updated.format("%Y-%m-%d %H:%M")
+                );
+                (note.body.as_str(), format!("{}\n{}", meta, "-".repeat(meta.len())))
+            } else { ("", "".to_string()) }
+        } else { ("", "".to_string()) };
+
+        let mut preview_lines = vec![
+            Line::from(Span::styled(meta_header, Style::default().add_modifier(Modifier::DIM))),
+            Line::from(""),
+        ];
+        
+        if app.config.syntax_highlighting.unwrap_or(true) && !content_text.is_empty() {
+            let syntax = app.syntax_set.find_syntax_by_extension("md").unwrap_or_else(|| app.syntax_set.find_syntax_plain_text());
+            let mut h = HighlightLines::new(syntax, &app.theme);
+            
+            for line in LinesWithEndings::from(content_text) {
+                let ranges: Vec<(syntect::highlighting::Style, &str)> = h.highlight_line(line, &app.syntax_set).unwrap_or_default();
+                let mut spans = vec![];
+                for (style, text) in ranges {
+                    let fg = Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                    spans.push(Span::styled(text.to_string(), Style::default().fg(fg)));
+                }
+                preview_lines.push(Line::from(spans));
+            }
+        } else {
+            for line in content_text.lines() {
+                preview_lines.push(Line::from(line));
+            }
         }
+
+        let content_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Preview")
+            .border_style(if app.active_pane == Pane::Content { Style::default().fg(active_color) } else { Style::default() });
+
+        let viewer = Paragraph::new(Text::from(preview_lines))
+            .block(content_block)
+            .wrap(Wrap { trim: false });
+        f.render_widget(viewer, body_chunks[2]);
     }
-
-    let content_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Preview")
-        .border_style(if app.active_pane == Pane::Content { Style::default().fg(active_color) } else { Style::default() });
-
-    let viewer = Paragraph::new(Text::from(preview_lines))
-        .block(content_block)
-        .wrap(Wrap { trim: false });
-    f.render_widget(viewer, body_chunks[2]);
 
     // 3. Status & Help
     let help_text = if app.editing_search {
         " [Enter] Done  [Esc] Cancel search "
+    } else if app.show_insights {
+        " [i] Back to Notes  [q] Quit "
     } else {
-        " [Tab] Pane  [j/k] Nav  [/] Search  [n] New  [y] Copy  [e] Edit  [d] Delete  [q] Quit "
+        " [Tab] Pane  [j/k] Nav  [/] Search  [n] New  [y] Copy  [e] Edit  [d] Delete  [i] Insights  [q] Quit "
     };
 
     let status_bar = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
         .split(chunks[2]);
 
     let msg = Paragraph::new(format!(" 📟 {}", app.status_msg))
