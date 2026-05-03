@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🚀 JOTUN (v0.3.0)
+# 🚀 JOTUN (v0.4.0)
 
 **The lightning-fast, terminal-native personal knowledge base. Capture at the speed of thought. Organize with hierarchical power.**
 
@@ -27,14 +27,21 @@
 
 ---
 
-## 🆕 New in v0.3.0: Hierarchical Knowledge & Performance
-v0.3.0 transforms Jotun from a simple note-taker into a structured personal knowledge base.
+## 🆕 New in v0.4.0: Insights & Visual Analytics
+v0.4.0 introduces the **Jotun Intelligence Suite**, giving you deep visibility into your knowledge base.
+
+- **Insights Dashboard**: A new full-screen dashboard in the TUI (press `i`) with Htop-style gauges for source distribution and a "process list" for recent notes.
+- **Penguin Stats CLI**: A beautiful Neofetch-style `jot stats` command with Penguin ASCII art and system metadata.
+- **Dracula Theme Engine**: The default look has been upgraded to the premium Dracula palette.
+- **Performance Tuning**: Optimized database queries for lightning-fast stats aggregation.
+
+---
+
+## 📅 New in v0.3.0: Hierarchical Knowledge & Performance
+v0.3.0 transformed Jotun from a simple note-taker into a structured personal knowledge base.
 
 - **Hierarchical Tagging**: Organize notes with nested paths (e.g., `work/project-a`, `personal/finance`).
-- **Three-Pane Dashboard**: A new high-efficiency TUI with a dedicated Tags Sidebar and Note Navigator.
-- **Syntax Highlighting**: Beautiful, high-performance Markdown rendering in the preview pane.
-- **Note Titles**: Explicit titles for your notes with smart fallbacks to body content.
-- **Safe Editor Fallback**: Never crash again—Jotun intelligently falls back to `nano` if your preferred editor (like `nvim`) isn't available.
+- **Three-Pane Dashboard**: High-efficiency TUI with a dedicated Tags Sidebar and Note Navigator.
 
 ---
 
@@ -84,6 +91,7 @@ jotun tags
 | `jotun tags` | Display all unique tags in a tree-like list. |
 | `jotun show [id]` | Full note display with complete metadata. |
 | `jotun find [query]` | Global FTS5 full-text search across titles and bodies. |
+| `jotun stats` | View **Neofetch-style analytics** and knowledge insights. |
 
 ---
 
@@ -96,9 +104,9 @@ editor = "nvim"                # Your preferred system editor
 syntax_highlighting = true     # Toggle Markdown highlighting in TUI
 
 [theme]
-active_border = "#FF007F"       # Color for the active pane
-highlight_bg = "black"         # Selection background color
-highlight_fg = "cyan"          # Selection text color
+active_border = "#bd93f9"       # Dracula Purple
+highlight_bg = "#44475a"        # Dracula Selection
+highlight_fg = "#f8f8f2"        # Dracula Foreground
 ```
 
 ---
