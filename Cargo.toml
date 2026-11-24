@@ -1,11 +1,17 @@
 [package]
 name = "jotun"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 authors = ["dev-Aatif"]
 description = "A lightning-fast, terminal-native note-taking tool built in Rust."
 repository = "https://github.com/dev-Aatif/jot"
 license = "MIT"
+exclude = ["jotun.gif", ".github/", "install.sh", "jot.spec"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }

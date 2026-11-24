@@ -14,16 +14,42 @@ env:
 
 jobs:
   build-release:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: jotun-linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset: jotun-linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset: jotun-darwin-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: jotun-darwin-aarch64
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
+    - name: Install Rust target
+      run: rustup target add ${{ matrix.target }}
     - name: Build release binary
-      run: cargo build --release --verbose
-    - name: Rename binary for release
-      run: mv target/release/jotun target/release/jotun-linux-x86_64
+      run: cargo build --release --locked --target ${{ matrix.target }} --verbose
+    - name: Stage binary and SHA-256 checksum
+      shell: bash
+      run: |
+        cp target/${{ matrix.target }}/release/jotun ${{ matrix.asset }}
+        if command -v sha256sum >/dev/null 2>&1; then
+          sha256sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+        else
+          shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+        fi
     - name: Upload Release Asset
       uses: softprops/action-gh-release@v2
       with:
-        files: target/release/jotun-linux-x86_64
+        files: |
+          ${{ matrix.asset }}
+          ${{ matrix.asset }}.sha256
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

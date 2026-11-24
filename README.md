@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🚀 JOTUN (v0.4.0)
+# 🚀 JOTUN (v0.4.1)
 
 **The lightning-fast, terminal-native personal knowledge base. Capture at the speed of thought. Organize with hierarchical power.**
 

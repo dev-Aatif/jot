@@ -1,9 +1,10 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use anyhow::{Result, Context};
 use std::fs;
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub editor: Option<String>,
     pub db_path: Option<String>,
@@ -12,10 +13,21 @@ pub struct Config {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ThemeConfig {
     pub active_border: String,
     pub highlight_bg: String,
     pub highlight_fg: String,
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            active_border: "#bd93f9".to_string(), // Purple
+            highlight_bg: "#44475a".to_string(),  // Selection
+            highlight_fg: "#f8f8f2".to_string(),  // Foreground
+        }
+    }
 }
 
 impl Default for Config {
@@ -24,11 +36,7 @@ impl Default for Config {
             editor: None,
             db_path: None,
             syntax_highlighting: Some(true),
-            theme: ThemeConfig {
-                active_border: "#bd93f9".to_string(), // Purple
-                highlight_bg: "#44475a".to_string(), // Selection
-                highlight_fg: "#f8f8f2".to_string(), // Foreground
-            },
+            theme: ThemeConfig::default(),
         }
     }
 }
@@ -47,14 +55,13 @@ impl Config {
         }
 
         let content = fs::read_to_string(config_path)?;
-        let config: Config = toml::from_str(&content)
-            .context("Failed to parse config.toml")?;
+        let config: Config = toml::from_str(&content).context("Failed to parse config.toml")?;
         Ok(config)
     }
 
     pub fn get_path() -> Result<PathBuf> {
-        let mut path = dirs::config_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
+        let mut path =
+            dirs::config_dir().ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
         path.push("jotun");
         path.push("config.toml");
         Ok(path)
@@ -70,5 +77,29 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.syntax_highlighting, Some(true));
         assert_eq!(config.theme.active_border, "#bd93f9");
+    }
+
+    #[test]
+    fn test_partial_toml_uses_defaults() {
+        let partial = r#"
+editor = "nvim"
+[theme]
+active_border = "cyan"
+"#;
+        let config: Config = toml::from_str(partial).expect("partial config should parse");
+        assert_eq!(config.editor.as_deref(), Some("nvim"));
+        assert_eq!(config.syntax_highlighting, Some(true));
+        assert_eq!(config.theme.active_border, "cyan");
+        assert_eq!(config.theme.highlight_bg, "#44475a");
+        assert_eq!(config.theme.highlight_fg, "#f8f8f2");
+    }
+
+    #[test]
+    fn test_malformed_toml_returns_error() {
+        let malformed = "editor = [unclosed";
+        assert!(toml::from_str::<Config>(malformed).is_err());
+
+        let wrong_type = "syntax_highlighting = \"yes\"";
+        assert!(toml::from_str::<Config>(wrong_type).is_err());
     }
 }

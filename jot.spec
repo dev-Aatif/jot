@@ -1,5 +1,5 @@
 Name:           jotun
-Version:        0.2.0
+Version:        0.4.1
 Release:        1%{?dist}
 Summary:        A lightning-fast, terminal-native note-taking tool built in Rust.
 
@@ -9,7 +9,6 @@ Source0:        %{url}/archive/v%{version}.tar.gz
 
 BuildRequires:  rust
 BuildRequires:  cargo
-BuildRequires:  sqlite-devel
 
 %description
 Jotun is a fast, terminal-native note-taking tool that lets you capture,
@@ -32,6 +31,10 @@ install -p -m 755 target/release/jotun %{buildroot}%{_bindir}/jotun
 %{_bindir}/jotun
 
 %changelog
+* Wed Nov 25 2026 dev-Aatif <dev-Aatif@github.com> - 0.4.1-1
+- Maintenance release v0.4.1 with SQLite/FTS5 integrity, TUI safety/performance, and cross-platform packaging fixes
+* Mon May 04 2026 dev-Aatif <dev-Aatif@github.com> - 0.4.0-1
+- Release of jotun v0.4.0 with Insights Dashboard, Penguin Stats, and Dracula Theme
 * Sat Apr 11 2026 dev-Aatif <dev-Aatif@github.com> - 0.2.0-1
 - Release of jotun v0.2.0 with Interactive TUI Dashboard
 * Mon Apr 06 2026 dev-Aatif <dev-Aatif@github.com> - 0.1.0-1

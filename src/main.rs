@@ -1,18 +1,18 @@
+mod config;
 mod db;
 mod tui;
-mod config;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use colored::*;
-use db::Database;
 use config::Config;
-use std::io::{self, Read};
-use std::path::PathBuf;
-use std::process::Command;
+use db::Database;
+use std::io::{self, IsTerminal, Read};
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus};
 
 #[derive(Parser)]
-#[command(name = "jot")]
+#[command(name = "jotun", version)]
 #[command(about = "A terminal-native quick-notes tool.", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -81,21 +81,41 @@ enum Commands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::load().unwrap_or_default();
+    let config = match Config::load() {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            eprintln!(
+                "{} Failed to load config ({}); using defaults.",
+                "!".yellow(),
+                err
+            );
+            Config::default()
+        }
+    };
     let db_path = get_db_path(&config)?;
     let db = Database::new(db_path.clone())?;
 
     match cli.command {
-        Commands::New { text, title, tag, source } => {
+        Commands::New {
+            text,
+            title,
+            tag,
+            source,
+        } => {
             let content = match text {
                 Some(t) => t,
                 None => {
+                    if io::stdin().is_terminal() {
+                        return Err(anyhow!(
+                            "No note text provided. Pass text as an argument or pipe via stdin."
+                        ));
+                    }
                     let mut buffer = String::new();
                     io::stdin().read_to_string(&mut buffer)?;
-                    buffer.trim().to_string()
+                    buffer.trim_end_matches(['\r', '\n']).to_string()
                 }
             };
-            if content.is_empty() {
+            if content.trim().is_empty() {
                 return Err(anyhow!("Note content cannot be empty."));
             }
             let id = db.create_note(&content, title.as_deref(), &source, &tag)?;
@@ -117,18 +137,32 @@ fn main() -> Result<()> {
             for note in notes {
                 let display_title = match &note.title {
                     Some(t) => t.clone(),
-                    None => note.body.lines().next().unwrap_or("").chars().take(20).collect::<String>(),
+                    None => note
+                        .body
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .chars()
+                        .take(20)
+                        .collect::<String>(),
                 };
-                
+
                 let tags_fmt = if note.tags.is_empty() {
                     "".to_string()
                 } else {
                     format!(" [{}]", note.tags.join(", ")).yellow().to_string()
                 };
 
-                let preview = note.body.lines().next().unwrap_or("").chars().take(40).collect::<String>();
+                let preview = note
+                    .body
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .chars()
+                    .take(40)
+                    .collect::<String>();
                 let created_fmt = note.created.format("%m-%d %H:%M").to_string();
-                
+
                 println!(
                     "{} | {} | {}{} | {}",
                     note.id.to_string().bold().cyan(),
@@ -148,9 +182,12 @@ fn main() -> Result<()> {
                 note.title.as_deref().unwrap_or("Untitled").bold(),
                 note.created.format("%Y-%m-%d %H:%M").to_string().dimmed()
             );
-            println!("{} {} | {} {}", 
-                "Source:".dimmed(), note.source.yellow(),
-                "Updated:".dimmed(), note.updated.format("%Y-%m-%d %H:%M").to_string().dimmed()
+            println!(
+                "{} {} | {} {}",
+                "Source:".dimmed(),
+                note.source.yellow(),
+                "Updated:".dimmed(),
+                note.updated.format("%Y-%m-%d %H:%M").to_string().dimmed()
             );
             if !note.tags.is_empty() {
                 println!("{} {}", "Tags:".dimmed(), note.tags.join(", ").yellow());
@@ -167,43 +204,18 @@ fn main() -> Result<()> {
             println!("{} Jotun: Found {} results:", "✓".green(), notes.len());
             for note in notes {
                 let title = note.title.as_deref().unwrap_or("Untitled");
-                println!(
-                    "{} | {}",
-                    note.id.to_string().bold().cyan(),
-                    title.bold()
-                );
+                println!("{} | {}", note.id.to_string().bold().cyan(), title.bold());
             }
         }
         Commands::Edit { id } => {
             let note = db.get_note(id)?;
-            let preferred_editor = config.editor.clone()
-                .or_else(|| std::env::var("VISUAL").ok())
-                .or_else(|| std::env::var("EDITOR").ok())
-                .unwrap_or_else(|| "nano".to_string());
-            
-            let temp_file = tempfile::NamedTempFile::new()?;
-            std::fs::write(temp_file.path(), &note.body)?;
-
-            let status = Command::new(&preferred_editor)
-                .arg(temp_file.path())
-                .status();
-
-            let status = match status {
-                Ok(s) => s,
-                Err(_) if preferred_editor != "nano" => {
-                    println!("{} Preferred editor '{}' not found. Falling back to nano...", "!".yellow(), preferred_editor);
-                    Command::new("nano")
-                        .arg(temp_file.path())
-                        .status()?
-                }
-                Err(e) => return Err(anyhow!("Failed to launch editor: {}", e)),
-            };
+            let temp_file = create_markdown_tempfile(&note.body)?;
+            let status = spawn_editor(&config, temp_file.path(), true)?;
 
             if status.success() {
-                let updated_body = std::fs::read_to_string(temp_file.path())?;
-                let updated_body = updated_body.trim();
+                let updated_body = read_edited_body(temp_file.path())?;
                 if updated_body != note.body {
-                    db.update_note(id, updated_body, note.title.as_deref(), &note.tags)?;
+                    db.update_note(id, &updated_body, note.title.as_deref(), &note.tags)?;
                     println!("{} Jotun: Updated note #{}", "✓".green(), id);
                 } else {
                     println!("No changes made.");
@@ -260,32 +272,57 @@ fn main() -> Result<()> {
 /'\_   _/`\
 \___)=(___/
             "#;
-            
+
             let lines: Vec<&str> = art.lines().filter(|s| !s.is_empty()).collect();
             let mut info = Vec::new();
-            info.push(format!("{} {}", "jotun".bright_green().bold(), "v0.4.0".dimmed()));
+            info.push(format!(
+                "{} {}",
+                "jotun".bright_green().bold(),
+                concat!("v", env!("CARGO_PKG_VERSION")).dimmed()
+            ));
             info.push("-".repeat(20).dimmed().to_string());
-            info.push(format!("{} {}", "Notes:".bright_purple(), stats.total_notes));
+            info.push(format!(
+                "{} {}",
+                "Notes:".bright_purple(),
+                stats.total_notes
+            ));
             info.push(format!("{} {}", "Tags: ".bright_purple(), stats.tag_count));
-            info.push(format!("{} {:.1} KB", "Size: ".bright_purple(), stats.total_chars as f64 / 1024.0));
-            info.push(format!("{} {}", "Loc:  ".bright_purple(), db_path.to_string_lossy().dimmed()));
-            
-            println!("");
+            info.push(format!(
+                "{} {:.1} KB",
+                "Size: ".bright_purple(),
+                stats.total_chars as f64 / 1024.0
+            ));
+            info.push(format!(
+                "{} {}",
+                "Loc:  ".bright_purple(),
+                db_path.to_string_lossy().dimmed()
+            ));
+
+            println!();
             for i in 0..lines.len().max(info.len()) {
-                let art_part = if i < lines.len() { lines[i].bright_cyan().bold().to_string() } else { " ".repeat(12) };
+                let art_part = if i < lines.len() {
+                    lines[i].bright_cyan().bold().to_string()
+                } else {
+                    " ".repeat(12)
+                };
                 let info_part = if i < info.len() { &info[i] } else { "" };
                 println!("  {:<15} {}", art_part, info_part);
             }
 
-            if !stats.top_tags.is_empty() {
+            if !stats.top_tags.is_empty() && stats.total_notes > 0 {
                 println!("\n  {}", "── Top Tags ──".bright_cyan());
                 for (tag, count) in &stats.top_tags {
                     let percent = (*count as f64 / stats.total_notes as f64 * 100.0).min(100.0);
                     let bar = "█".repeat((percent / 4.0) as usize);
-                    println!("  {:<10} {} {}%", tag.yellow(), bar.bright_yellow(), percent as u32);
+                    println!(
+                        "  {:<10} {} {}%",
+                        tag.yellow(),
+                        bar.bright_yellow(),
+                        percent as u32
+                    );
                 }
             }
-            println!("");
+            println!();
         }
         Commands::Dash => {
             tui::run_tui(&db, &config, db_path)?;
@@ -293,6 +330,56 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+pub(crate) fn create_markdown_tempfile(initial_content: &str) -> Result<tempfile::NamedTempFile> {
+    let temp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
+    if !initial_content.is_empty() {
+        std::fs::write(temp_file.path(), initial_content)?;
+    }
+    Ok(temp_file)
+}
+
+pub(crate) fn read_edited_body(path: &Path) -> Result<String> {
+    let content = std::fs::read_to_string(path)?;
+    Ok(content.trim_end_matches(['\r', '\n']).to_string())
+}
+
+pub(crate) fn spawn_editor(
+    config: &Config,
+    path: &Path,
+    warn_on_fallback: bool,
+) -> Result<ExitStatus> {
+    let preferred_editor = config
+        .editor
+        .clone()
+        .or_else(|| std::env::var("VISUAL").ok())
+        .or_else(|| std::env::var("EDITOR").ok())
+        .unwrap_or_else(|| "nano".to_string());
+
+    let mut parts = preferred_editor.split_whitespace();
+    let bin = parts.next().unwrap_or("nano");
+    let args: Vec<&str> = parts.collect();
+
+    let status = Command::new(bin).args(&args).arg(path).status();
+
+    match status {
+        Ok(s) => Ok(s),
+        Err(_) if bin != "nano" => {
+            if warn_on_fallback {
+                println!(
+                    "{} Preferred editor '{}' not found. Falling back to nano...",
+                    "!".yellow(),
+                    preferred_editor
+                );
+            }
+            Command::new("nano")
+                .arg(path)
+                .status()
+                .map_err(|e| anyhow!("Failed to launch editor: {}", e))
+        }
+        Err(e) => Err(anyhow!("Failed to launch editor: {}", e)),
+    }
 }
 
 fn get_db_path(config: &Config) -> Result<PathBuf> {
@@ -303,54 +390,154 @@ fn get_db_path(config: &Config) -> Result<PathBuf> {
     if let Ok(p) = std::env::var("JOTUN_DB_PATH") {
         return Ok(PathBuf::from(p));
     }
-    
-    let mut path = dirs::data_dir()
-        .ok_or_else(|| anyhow!("Could not find user data directory"))?;
+
+    let mut path = dirs::data_dir().ok_or_else(|| anyhow!("Could not find user data directory"))?;
     path.push("jotun");
     path.push("jotun.db");
     Ok(path)
 }
 
-fn copy_to_clipboard(text: &str) -> Result<()> {
-    let (cmd, args) = if std::env::var("WAYLAND_DISPLAY").is_ok() {
-        ("wl-copy", vec![])
-    } else {
-        ("xclip", vec!["-selection", "clipboard"])
-    };
-
-    let mut child = Command::new(cmd)
-        .args(args)
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow!("Failed to spawn clipboard command '{}': {}. Make sure it is installed.", cmd, e))?;
-
-    let mut stdin = child.stdin.take().ok_or_else(|| anyhow!("Failed to open stdin for clipboard command"))?;
-    io::Write::write_all(&mut stdin, text.as_bytes())?;
-    drop(stdin); // Close stdin to signal EOF
-
-    let status = child.wait()?;
-    if !status.success() {
-        return Err(anyhow!("Clipboard command '{}' failed.", cmd));
+fn clipboard_candidates(copy: bool) -> Vec<(&'static str, Vec<&'static str>)> {
+    if cfg!(target_os = "macos") {
+        return if copy {
+            vec![("pbcopy", vec![])]
+        } else {
+            vec![("pbpaste", vec![])]
+        };
     }
-    Ok(())
+
+    let mut cmds = Vec::new();
+    if std::env::var("WAYLAND_DISPLAY").is_ok_and(|v| !v.is_empty()) {
+        if copy {
+            cmds.push(("wl-copy", vec![]));
+        } else {
+            cmds.push(("wl-paste", vec!["-n"]));
+        }
+    }
+    if copy {
+        cmds.push(("xclip", vec!["-selection", "clipboard"]));
+        cmds.push(("xsel", vec!["--clipboard", "--input"]));
+    } else {
+        cmds.push(("xclip", vec!["-selection", "clipboard", "-o"]));
+        cmds.push(("xsel", vec!["--clipboard", "--output"]));
+    }
+    cmds
+}
+
+fn copy_to_clipboard(text: &str) -> Result<()> {
+    let candidates = clipboard_candidates(true);
+    let mut last_err = None;
+
+    for (cmd, args) in candidates {
+        match Command::new(cmd)
+            .args(&args)
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                let mut stdin = child
+                    .stdin
+                    .take()
+                    .ok_or_else(|| anyhow!("Failed to open stdin for clipboard command"))?;
+                let write_res = io::Write::write_all(&mut stdin, text.as_bytes());
+                drop(stdin);
+                let status = child.wait()?;
+                write_res?;
+                if !status.success() {
+                    return Err(anyhow!("Clipboard command '{}' failed.", cmd));
+                }
+                return Ok(());
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                last_err = Some(e);
+            }
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to spawn clipboard command '{}': {}.",
+                    cmd,
+                    e
+                ));
+            }
+        }
+    }
+
+    Err(anyhow!(
+        "No supported clipboard tool found ({}).",
+        last_err.map(|e| e.to_string()).unwrap_or_default()
+    ))
 }
 
 fn get_from_clipboard() -> Result<String> {
-    let (cmd, args) = if std::env::var("WAYLAND_DISPLAY").is_ok() {
-        ("wl-paste", vec!["-n"])
-    } else {
-        ("xclip", vec!["-selection", "clipboard", "-o"])
-    };
+    let candidates = clipboard_candidates(false);
+    let mut last_err = None;
 
-    let output = Command::new(cmd)
-        .args(args)
-        .output()
-        .map_err(|e| anyhow!("Failed to exec clipboard command '{}': {}. Make sure it is installed.", cmd, e))?;
-
-    if !output.status.success() {
-        return Err(anyhow!("Clipboard command '{}' failed.", cmd));
+    for (cmd, args) in candidates {
+        match Command::new(cmd).args(&args).output() {
+            Ok(output) => {
+                if !output.status.success() {
+                    return Err(anyhow!("Clipboard command '{}' failed.", cmd));
+                }
+                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                last_err = Some(e);
+            }
+            Err(e) => {
+                return Err(anyhow!(
+                    "Failed to exec clipboard command '{}': {}.",
+                    cmd,
+                    e
+                ));
+            }
+        }
     }
 
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    Err(anyhow!(
+        "No supported clipboard tool found ({}).",
+        last_err.map(|e| e.to_string()).unwrap_or_default()
+    ))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_parses_subcommands() {
+        let cli = Cli::try_parse_from(["jotun", "new", "hello", "-t", "work/p1", "--title", "T"])
+            .expect("new command should parse");
+        match cli.command {
+            Commands::New {
+                text,
+                title,
+                tag,
+                source,
+            } => {
+                assert_eq!(text.as_deref(), Some("hello"));
+                assert_eq!(title.as_deref(), Some("T"));
+                assert_eq!(tag, vec!["work/p1"]);
+                assert_eq!(source, "manual");
+            }
+            _ => panic!("expected New command"),
+        }
+
+        assert!(Cli::try_parse_from(["jotun", "dash"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "stats"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "ls", "-t", "work"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "show", "1"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "find", "rust"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "edit", "1"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "rm", "1", "--force"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "cp", "1"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "paste"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "tags"]).is_ok());
+    }
+
+    #[test]
+    fn test_read_edited_body_preserves_leading_indent() -> Result<()> {
+        let tf = create_markdown_tempfile("  indented line\nsecond line\n")?;
+        let read_back = read_edited_body(tf.path())?;
+        assert_eq!(read_back, "  indented line\nsecond line");
+        Ok(())
+    }
+}
