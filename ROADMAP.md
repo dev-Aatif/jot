@@ -4,9 +4,13 @@
 - [x] V0.2.0: Interactive TUI Dashboard
 - [x] V0.3.0: Hierarchical Tagging & Titles (Completed)
 - [x] V0.4.0: Insights & Statistics Dashboard (Completed)
-  - CLI `jot stats` command with Penguin ASCII art.
+  - CLI `jotun stats` command with Penguin ASCII art.
   - TUI Insights Dashboard with htop-style gauges and recent notes table.
   - Dracula theme integration.
+- [x] V0.4.1: Reliability, Performance & Cross-Platform Packaging (Completed)
+  - SQLite foreign-key cascades, WAL mode, transactional writes, orphan tag pruning, and FTS5 migration rebuild.
+  - Panic/error-safe terminal restoration, event-driven rendering with cached highlighting/stats, and `Preview` scrolling.
+  - Cross-platform release matrix (`linux`/`darwin`, `x86_64`/`aarch64`) with SHA-256 verification.
 - [ ] V0.5.0: Encryption & Secure Notes
   - Password-protected note bodies.
   - Encrypted SQLite database at rest.
