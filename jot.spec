@@ -1,5 +1,5 @@
 Name:           jotun
-Version:        0.4.1
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        A lightning-fast, terminal-native note-taking tool built in Rust.
 
@@ -31,6 +31,8 @@ install -p -m 755 target/release/jotun %{buildroot}%{_bindir}/jotun
 %{_bindir}/jotun
 
 %changelog
+* Wed Nov 25 2026 dev-Aatif <dev-Aatif@github.com> - 0.5.0-1
+- Release v0.5.0 with semantic theme presets, collapsible tag tree, modals, ranked FTS5 snippets, JSON/Markdown export, doctor, shell completions, and OSC 52 clipboard fallback
 * Wed Nov 25 2026 dev-Aatif <dev-Aatif@github.com> - 0.4.1-1
 - Maintenance release v0.4.1 with SQLite/FTS5 integrity, TUI safety/performance, and cross-platform packaging fixes
 * Mon May 04 2026 dev-Aatif <dev-Aatif@github.com> - 0.4.0-1

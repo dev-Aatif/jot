@@ -1,6 +1,6 @@
 [package]
 name = "jotun"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 authors = ["dev-Aatif"]
 description = "A lightning-fast, terminal-native note-taking tool built in Rust."
@@ -22,6 +22,8 @@ chrono = "0.4"
 dirs = "5.0"
 tempfile = "3.10"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
 toml = "0.8"
 syntect = "5.2"
 ratatui = { version = "0.26", features = ["crossterm"] }

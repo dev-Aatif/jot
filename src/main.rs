@@ -1,15 +1,17 @@
+mod commands;
 mod config;
 mod db;
+mod frontmatter;
 mod tui;
 
-use anyhow::{Result, anyhow};
-use clap::{Parser, Subcommand};
+use anyhow::Result;
+use clap::{CommandFactory, Parser, Subcommand};
 use colored::*;
+use commands::{CompletionShell, EditOptions, ExportFormat, NewOptions};
 use config::Config;
 use db::Database;
-use std::io::{self, IsTerminal, Read};
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
+use std::io::{self, IsTerminal};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "jotun", version)]
@@ -35,26 +37,68 @@ enum Commands {
         #[arg(short, long, default_value = "manual")]
         source: String,
     },
-    /// List all notes
+    /// List notes
     Ls {
         /// Filter by tag (supports hierarchical search, e.g. "work" matches "work/p1")
         #[arg(short, long)]
         tag: Option<String>,
+        /// Filter by source (e.g. "tui", "manual", "clipboard")
+        #[arg(short, long)]
+        source: Option<String>,
+        /// Include archived notes
+        #[arg(long)]
+        archived: bool,
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
     },
     /// View a specific note
     Show {
         /// The ID of the note to show.
         id: i64,
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
     },
-    /// Find notes by searching their content
+    /// Find notes by full-text search with relevance ranking and snippets
     Find {
         /// The search query.
         query: String,
+        /// Filter results by hierarchical tag
+        #[arg(short, long)]
+        tag: Option<String>,
+        /// Filter results by source
+        #[arg(short, long)]
+        source: Option<String>,
+        /// Include archived notes
+        #[arg(long)]
+        archived: bool,
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
     },
-    /// Edit a specific note in your default editor
+    /// Edit a specific note in your default editor or update metadata
     Edit {
         /// The ID of the note to edit.
         id: i64,
+        /// Update note title without opening an editor (unless --editor is set)
+        #[arg(long)]
+        title: Option<String>,
+        /// Replace note tags (can be passed multiple times)
+        #[arg(short, long)]
+        tag: Vec<String>,
+        /// Pin or unpin the note (true/false)
+        #[arg(long)]
+        pin: Option<bool>,
+        /// Archive or unarchive the note (true/false)
+        #[arg(long)]
+        archive: Option<bool>,
+        /// Include YAML frontmatter (title, tags) in the editor temp file
+        #[arg(long)]
+        frontmatter: bool,
+        /// Also open the external editor after applying metadata flags
+        #[arg(long)]
+        editor: bool,
     },
     /// Delete a specific note
     Rm {
@@ -64,23 +108,68 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
     },
-    /// Copy a note to the system clipboard
+    /// Copy a note to the system clipboard (with OSC 52 fallback)
     Cp {
         /// The ID of the note to copy.
         id: i64,
     },
     /// Create a new note from the current clipboard content
     Paste,
-    /// List all unique tags
-    Tags,
+    /// List all unique tags with note counts
+    Tags {
+        /// Include tags on archived notes
+        #[arg(long)]
+        archived: bool,
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
+    },
     /// View note statistics
-    Stats,
+    Stats {
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Export notes to Markdown files or JSON
+    Export {
+        /// Output format (markdown or json)
+        #[arg(short, long, value_enum)]
+        format: ExportFormat,
+        /// Destination directory (for markdown) or file path / '-' (for json)
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Filter exported notes by tag
+        #[arg(short, long)]
+        tag: Option<String>,
+        /// Include archived notes
+        #[arg(long)]
+        archived: bool,
+    },
+    /// Run health and environment diagnostics
+    Doctor {
+        /// Emit structured JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Generate shell completions
+    Completions {
+        /// Target shell (bash, zsh, fish)
+        #[arg(value_enum)]
+        shell: CompletionShell,
+    },
     /// Launch the interactive TUI dashboard
     Dash,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let mut stdout = io::stdout().lock();
+
+    if let Commands::Completions { shell } = cli.command {
+        let cmd = Cli::command();
+        return commands::handle_completions(&cmd, shell, &mut stdout);
+    }
+
     let config = match Config::load() {
         Ok(cfg) => cfg,
         Err(err) => {
@@ -102,284 +191,114 @@ fn main() -> Result<()> {
             tag,
             source,
         } => {
-            let content = match text {
-                Some(t) => t,
-                None => {
-                    if io::stdin().is_terminal() {
-                        return Err(anyhow!(
-                            "No note text provided. Pass text as an argument or pipe via stdin."
-                        ));
-                    }
-                    let mut buffer = String::new();
-                    io::stdin().read_to_string(&mut buffer)?;
-                    buffer.trim_end_matches(['\r', '\n']).to_string()
-                }
-            };
-            if content.trim().is_empty() {
-                return Err(anyhow!("Note content cannot be empty."));
-            }
-            let id = db.create_note(&content, title.as_deref(), &source, &tag)?;
-            println!("{} Jotun: Saved note #{}", "✓".green(), id);
+            let mut stdin = io::stdin().lock();
+            commands::handle_new(
+                &db,
+                NewOptions {
+                    text,
+                    title,
+                    tags: &tag,
+                    source: &source,
+                    stdin_is_tty: io::stdin().is_terminal(),
+                },
+                &mut stdin,
+                &mut stdout,
+            )?;
         }
-        Commands::Ls { tag } => {
-            let notes = if let Some(t) = tag {
-                db.find_by_tag(&t)?
-            } else {
-                db.list_notes()?
-            };
-
-            if notes.is_empty() {
-                println!("No notes found.");
-                return Ok(());
-            }
-
-            println!("{}", "Note ID | Created | Title / Tags | Preview".dimmed());
-            for note in notes {
-                let display_title = match &note.title {
-                    Some(t) => t.clone(),
-                    None => note
-                        .body
-                        .lines()
-                        .next()
-                        .unwrap_or("")
-                        .chars()
-                        .take(20)
-                        .collect::<String>(),
-                };
-
-                let tags_fmt = if note.tags.is_empty() {
-                    "".to_string()
-                } else {
-                    format!(" [{}]", note.tags.join(", ")).yellow().to_string()
-                };
-
-                let preview = note
-                    .body
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .chars()
-                    .take(40)
-                    .collect::<String>();
-                let created_fmt = note.created.format("%m-%d %H:%M").to_string();
-
-                println!(
-                    "{} | {} | {}{} | {}",
-                    note.id.to_string().bold().cyan(),
-                    created_fmt.dimmed(),
-                    display_title.bold(),
-                    tags_fmt,
-                    preview.dimmed()
-                );
-            }
+        Commands::Ls {
+            tag,
+            source,
+            archived,
+            json,
+        } => {
+            commands::handle_ls(
+                &db,
+                tag.as_deref(),
+                source.as_deref(),
+                archived,
+                json,
+                &mut stdout,
+            )?;
         }
-        Commands::Show { id } => {
-            let note = db.get_note(id)?;
-            println!(
-                "{} #{} - {} ({})",
-                "Jotun Note".bold().cyan(),
-                note.id,
-                note.title.as_deref().unwrap_or("Untitled").bold(),
-                note.created.format("%Y-%m-%d %H:%M").to_string().dimmed()
-            );
-            println!(
-                "{} {} | {} {}",
-                "Source:".dimmed(),
-                note.source.yellow(),
-                "Updated:".dimmed(),
-                note.updated.format("%Y-%m-%d %H:%M").to_string().dimmed()
-            );
-            if !note.tags.is_empty() {
-                println!("{} {}", "Tags:".dimmed(), note.tags.join(", ").yellow());
-            }
-            println!("{}", "-".repeat(40).dimmed());
-            println!("{}", note.body);
+        Commands::Show { id, json } => {
+            commands::handle_show(&db, id, json, &mut stdout)?;
         }
-        Commands::Find { query } => {
-            let notes = db.search_notes(&query)?;
-            if notes.is_empty() {
-                println!("No results found for '{}'.", query);
-                return Ok(());
-            }
-            println!("{} Jotun: Found {} results:", "✓".green(), notes.len());
-            for note in notes {
-                let title = note.title.as_deref().unwrap_or("Untitled");
-                println!("{} | {}", note.id.to_string().bold().cyan(), title.bold());
-            }
+        Commands::Find {
+            query,
+            tag,
+            source,
+            archived,
+            json,
+        } => {
+            commands::handle_find(
+                &db,
+                &query,
+                tag.as_deref(),
+                source.as_deref(),
+                archived,
+                json,
+                &mut stdout,
+            )?;
         }
-        Commands::Edit { id } => {
-            let note = db.get_note(id)?;
-            let temp_file = create_markdown_tempfile(&note.body)?;
-            let status = spawn_editor(&config, temp_file.path(), true)?;
-
-            if status.success() {
-                let updated_body = read_edited_body(temp_file.path())?;
-                if updated_body != note.body {
-                    db.update_note(id, &updated_body, note.title.as_deref(), &note.tags)?;
-                    println!("{} Jotun: Updated note #{}", "✓".green(), id);
-                } else {
-                    println!("No changes made.");
-                }
-            } else {
-                return Err(anyhow!("Editor exited with a non-zero status code."));
-            }
+        Commands::Edit {
+            id,
+            title,
+            tag,
+            pin,
+            archive,
+            frontmatter,
+            editor,
+        } => {
+            commands::handle_edit(
+                &db,
+                &config,
+                EditOptions {
+                    id,
+                    title,
+                    tags: tag,
+                    pin,
+                    archive,
+                    frontmatter,
+                    open_editor: editor,
+                },
+                &mut stdout,
+            )?;
         }
         Commands::Rm { id, force } => {
-            if !force {
-                println!("Are you sure you want to delete note #{}? [y/N]", id);
-                let mut response = String::new();
-                io::stdin().read_line(&mut response)?;
-                if response.trim().to_lowercase() != "y" {
-                    println!("Aborted.");
-                    return Ok(());
-                }
-            }
-            db.delete_note(id)?;
-            println!("{} Jotun: Deleted note #{}", "✓".green(), id);
+            let mut stdin = io::stdin().lock();
+            commands::handle_rm(&db, id, force, &mut stdin, &mut stdout)?;
         }
         Commands::Cp { id } => {
-            let note = db.get_note(id)?;
-            copy_to_clipboard(&note.body)?;
-            println!("{} Jotun: Copied note #{} to clipboard.", "✓".green(), id);
+            commands::handle_cp(&db, id, &mut stdout)?;
         }
         Commands::Paste => {
-            let content = get_from_clipboard()?;
-            if content.is_empty() {
-                return Err(anyhow!("Clipboard is empty."));
-            }
-            let id = db.create_note(&content, None, "clipboard", &[])?;
-            println!("{} Jotun: Saved note #{} from clipboard.", "✓".green(), id);
+            commands::handle_paste(&db, &mut stdout)?;
         }
-        Commands::Tags => {
-            let tags = db.list_all_tags()?;
-            if tags.is_empty() {
-                println!("No tags found.");
-                return Ok(());
-            }
-            println!("{}", "Jotun Tags:".bold().cyan());
-            for tag in tags {
-                println!("  • {}", tag.yellow());
-            }
+        Commands::Tags { archived, json } => {
+            commands::handle_tags(&db, archived, json, &mut stdout)?;
         }
-        Commands::Stats => {
-            let stats = db.get_statistics()?;
-            let art = r#"
-    .--.
-   |o_o |
-   |:_/ |
-  //   \ \
- (|     | )
-/'\_   _/`\
-\___)=(___/
-            "#;
-
-            let lines: Vec<&str> = art.lines().filter(|s| !s.is_empty()).collect();
-            let mut info = Vec::new();
-            info.push(format!(
-                "{} {}",
-                "jotun".bright_green().bold(),
-                concat!("v", env!("CARGO_PKG_VERSION")).dimmed()
-            ));
-            info.push("-".repeat(20).dimmed().to_string());
-            info.push(format!(
-                "{} {}",
-                "Notes:".bright_purple(),
-                stats.total_notes
-            ));
-            info.push(format!("{} {}", "Tags: ".bright_purple(), stats.tag_count));
-            info.push(format!(
-                "{} {:.1} KB",
-                "Size: ".bright_purple(),
-                stats.total_chars as f64 / 1024.0
-            ));
-            info.push(format!(
-                "{} {}",
-                "Loc:  ".bright_purple(),
-                db_path.to_string_lossy().dimmed()
-            ));
-
-            println!();
-            for i in 0..lines.len().max(info.len()) {
-                let art_part = if i < lines.len() {
-                    lines[i].bright_cyan().bold().to_string()
-                } else {
-                    " ".repeat(12)
-                };
-                let info_part = if i < info.len() { &info[i] } else { "" };
-                println!("  {:<15} {}", art_part, info_part);
-            }
-
-            if !stats.top_tags.is_empty() && stats.total_notes > 0 {
-                println!("\n  {}", "── Top Tags ──".bright_cyan());
-                for (tag, count) in &stats.top_tags {
-                    let percent = (*count as f64 / stats.total_notes as f64 * 100.0).min(100.0);
-                    let bar = "█".repeat((percent / 4.0) as usize);
-                    println!(
-                        "  {:<10} {} {}%",
-                        tag.yellow(),
-                        bar.bright_yellow(),
-                        percent as u32
-                    );
-                }
-            }
-            println!();
+        Commands::Stats { json } => {
+            commands::handle_stats(&db, &db_path, json, &mut stdout)?;
         }
+        Commands::Export {
+            format,
+            output,
+            tag,
+            archived,
+        } => {
+            commands::handle_export(&db, format, &output, tag.as_deref(), archived, &mut stdout)?;
+        }
+        Commands::Doctor { json } => {
+            commands::handle_doctor(&db, &db_path, json, &mut stdout)?;
+        }
+        Commands::Completions { .. } => unreachable!(),
         Commands::Dash => {
+            drop(stdout);
             tui::run_tui(&db, &config, db_path)?;
         }
     }
 
     Ok(())
-}
-
-pub(crate) fn create_markdown_tempfile(initial_content: &str) -> Result<tempfile::NamedTempFile> {
-    let temp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
-    if !initial_content.is_empty() {
-        std::fs::write(temp_file.path(), initial_content)?;
-    }
-    Ok(temp_file)
-}
-
-pub(crate) fn read_edited_body(path: &Path) -> Result<String> {
-    let content = std::fs::read_to_string(path)?;
-    Ok(content.trim_end_matches(['\r', '\n']).to_string())
-}
-
-pub(crate) fn spawn_editor(
-    config: &Config,
-    path: &Path,
-    warn_on_fallback: bool,
-) -> Result<ExitStatus> {
-    let preferred_editor = config
-        .editor
-        .clone()
-        .or_else(|| std::env::var("VISUAL").ok())
-        .or_else(|| std::env::var("EDITOR").ok())
-        .unwrap_or_else(|| "nano".to_string());
-
-    let mut parts = preferred_editor.split_whitespace();
-    let bin = parts.next().unwrap_or("nano");
-    let args: Vec<&str> = parts.collect();
-
-    let status = Command::new(bin).args(&args).arg(path).status();
-
-    match status {
-        Ok(s) => Ok(s),
-        Err(_) if bin != "nano" => {
-            if warn_on_fallback {
-                println!(
-                    "{} Preferred editor '{}' not found. Falling back to nano...",
-                    "!".yellow(),
-                    preferred_editor
-                );
-            }
-            Command::new("nano")
-                .arg(path)
-                .status()
-                .map_err(|e| anyhow!("Failed to launch editor: {}", e))
-        }
-        Err(e) => Err(anyhow!("Failed to launch editor: {}", e)),
-    }
 }
 
 fn get_db_path(config: &Config) -> Result<PathBuf> {
@@ -391,116 +310,17 @@ fn get_db_path(config: &Config) -> Result<PathBuf> {
         return Ok(PathBuf::from(p));
     }
 
-    let mut path = dirs::data_dir().ok_or_else(|| anyhow!("Could not find user data directory"))?;
+    let mut path =
+        dirs::data_dir().ok_or_else(|| anyhow::anyhow!("Could not find user data directory"))?;
     path.push("jotun");
     path.push("jotun.db");
     Ok(path)
 }
 
-fn clipboard_candidates(copy: bool) -> Vec<(&'static str, Vec<&'static str>)> {
-    if cfg!(target_os = "macos") {
-        return if copy {
-            vec![("pbcopy", vec![])]
-        } else {
-            vec![("pbpaste", vec![])]
-        };
-    }
-
-    let mut cmds = Vec::new();
-    if std::env::var("WAYLAND_DISPLAY").is_ok_and(|v| !v.is_empty()) {
-        if copy {
-            cmds.push(("wl-copy", vec![]));
-        } else {
-            cmds.push(("wl-paste", vec!["-n"]));
-        }
-    }
-    if copy {
-        cmds.push(("xclip", vec!["-selection", "clipboard"]));
-        cmds.push(("xsel", vec!["--clipboard", "--input"]));
-    } else {
-        cmds.push(("xclip", vec!["-selection", "clipboard", "-o"]));
-        cmds.push(("xsel", vec!["--clipboard", "--output"]));
-    }
-    cmds
-}
-
-fn copy_to_clipboard(text: &str) -> Result<()> {
-    let candidates = clipboard_candidates(true);
-    let mut last_err = None;
-
-    for (cmd, args) in candidates {
-        match Command::new(cmd)
-            .args(&args)
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-        {
-            Ok(mut child) => {
-                let mut stdin = child
-                    .stdin
-                    .take()
-                    .ok_or_else(|| anyhow!("Failed to open stdin for clipboard command"))?;
-                let write_res = io::Write::write_all(&mut stdin, text.as_bytes());
-                drop(stdin);
-                let status = child.wait()?;
-                write_res?;
-                if !status.success() {
-                    return Err(anyhow!("Clipboard command '{}' failed.", cmd));
-                }
-                return Ok(());
-            }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                last_err = Some(e);
-            }
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to spawn clipboard command '{}': {}.",
-                    cmd,
-                    e
-                ));
-            }
-        }
-    }
-
-    Err(anyhow!(
-        "No supported clipboard tool found ({}).",
-        last_err.map(|e| e.to_string()).unwrap_or_default()
-    ))
-}
-
-fn get_from_clipboard() -> Result<String> {
-    let candidates = clipboard_candidates(false);
-    let mut last_err = None;
-
-    for (cmd, args) in candidates {
-        match Command::new(cmd).args(&args).output() {
-            Ok(output) => {
-                if !output.status.success() {
-                    return Err(anyhow!("Clipboard command '{}' failed.", cmd));
-                }
-                return Ok(String::from_utf8_lossy(&output.stdout).to_string());
-            }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                last_err = Some(e);
-            }
-            Err(e) => {
-                return Err(anyhow!(
-                    "Failed to exec clipboard command '{}': {}.",
-                    cmd,
-                    e
-                ));
-            }
-        }
-    }
-
-    Err(anyhow!(
-        "No supported clipboard tool found ({}).",
-        last_err.map(|e| e.to_string()).unwrap_or_default()
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn test_cli_parses_subcommands() {
@@ -522,22 +342,147 @@ mod tests {
         }
 
         assert!(Cli::try_parse_from(["jotun", "dash"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "stats"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "ls", "-t", "work"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "show", "1"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "find", "rust"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "edit", "1"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "stats", "--json"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "ls", "-t", "work", "--json", "--archived"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "show", "1", "--json"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "find", "rust", "-t", "work", "--json"]).is_ok());
+        assert!(
+            Cli::try_parse_from(["jotun", "edit", "1", "--title", "New", "--pin", "true"]).is_ok()
+        );
         assert!(Cli::try_parse_from(["jotun", "rm", "1", "--force"]).is_ok());
         assert!(Cli::try_parse_from(["jotun", "cp", "1"]).is_ok());
         assert!(Cli::try_parse_from(["jotun", "paste"]).is_ok());
-        assert!(Cli::try_parse_from(["jotun", "tags"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "tags", "--json"]).is_ok());
+        assert!(
+            Cli::try_parse_from(["jotun", "export", "-f", "markdown", "-o", "/tmp/out"]).is_ok()
+        );
+        assert!(Cli::try_parse_from(["jotun", "doctor", "--json"]).is_ok());
+        assert!(Cli::try_parse_from(["jotun", "completions", "fish"]).is_ok());
     }
 
     #[test]
     fn test_read_edited_body_preserves_leading_indent() -> Result<()> {
-        let tf = create_markdown_tempfile("  indented line\nsecond line\n")?;
-        let read_back = read_edited_body(tf.path())?;
+        let tf = commands::create_markdown_tempfile("  indented line\nsecond line\n")?;
+        let read_back = commands::read_edited_body(tf.path())?;
         assert_eq!(read_back, "  indented line\nsecond line");
+        Ok(())
+    }
+
+    #[test]
+    fn test_cli_json_outputs_and_metadata_edit() -> Result<()> {
+        let db = Database::in_memory()?;
+        let config = Config::default();
+        let mut out = Vec::new();
+        let mut stdin = Cursor::new(b"");
+        let id = commands::handle_new(
+            &db,
+            NewOptions {
+                text: Some("PKCE verifier auth fix".to_string()),
+                title: Some("Auth Fix".to_string()),
+                tags: &["work/jotun".to_string()],
+                source: "cli",
+                stdin_is_tty: true,
+            },
+            &mut stdin,
+            &mut out,
+        )?;
+
+        out.clear();
+        commands::handle_ls(&db, None, None, false, true, &mut out)?;
+        let ls_json: serde_json::Value = serde_json::from_slice(&out)?;
+        assert_eq!(ls_json.as_array().unwrap().len(), 1);
+        assert_eq!(ls_json[0]["title"], "Auth Fix");
+
+        out.clear();
+        commands::handle_find(
+            &db,
+            "PKCE",
+            Some("work"),
+            Some("cli"),
+            false,
+            true,
+            &mut out,
+        )?;
+        let find_json: serde_json::Value = serde_json::from_slice(&out)?;
+        assert_eq!(find_json.as_array().unwrap().len(), 1);
+        assert!(find_json[0]["snippet"].as_str().unwrap().contains('«'));
+
+        out.clear();
+        commands::handle_edit(
+            &db,
+            &config,
+            EditOptions {
+                id,
+                title: Some("Renamed Auth".to_string()),
+                tags: vec!["security".to_string()],
+                pin: Some(true),
+                archive: None,
+                frontmatter: false,
+                open_editor: false,
+            },
+            &mut out,
+        )?;
+        let updated = db.get_note(id)?;
+        assert_eq!(updated.title.as_deref(), Some("Renamed Auth"));
+        assert_eq!(updated.tags, vec!["security".to_string()]);
+        assert!(updated.pinned);
+
+        out.clear();
+        commands::handle_tags(&db, false, true, &mut out)?;
+        let tags_json: serde_json::Value = serde_json::from_slice(&out)?;
+        assert_eq!(tags_json[0]["name"], "security");
+        assert_eq!(tags_json[0]["count"], 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_doctor_completions_and_osc52() -> Result<()> {
+        let db = Database::in_memory()?;
+        db.create_note(
+            "Markdown export body",
+            Some("Export Title"),
+            "cli",
+            &["docs".to_string()],
+        )?;
+
+        let dir = tempfile::tempdir()?;
+        let md_dir = dir.path().join("md");
+        let mut out = Vec::new();
+        commands::handle_export(&db, ExportFormat::Markdown, &md_dir, None, false, &mut out)?;
+        let exported_file = md_dir.join("1-export-title.md");
+        assert!(exported_file.exists());
+        let content = std::fs::read_to_string(exported_file)?;
+        assert!(content.contains("title: \"Export Title\""));
+        assert!(content.contains("Markdown export body"));
+
+        let json_path = dir.path().join("notes.json");
+        out.clear();
+        commands::handle_export(&db, ExportFormat::Json, &json_path, None, false, &mut out)?;
+        let parsed: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(json_path)?)?;
+        assert_eq!(parsed.as_array().unwrap().len(), 1);
+
+        out.clear();
+        commands::handle_doctor(&db, dir.path(), true, &mut out)?;
+        let report: serde_json::Value = serde_json::from_slice(&out)?;
+        assert_eq!(report["database"]["integrity_ok"], true);
+        assert_eq!(report["database"]["fts_in_sync"], true);
+
+        let cmd = Cli::command();
+        for shell in [
+            CompletionShell::Bash,
+            CompletionShell::Zsh,
+            CompletionShell::Fish,
+        ] {
+            out.clear();
+            commands::handle_completions(&cmd, shell, &mut out)?;
+            let script = String::from_utf8(out.clone())?;
+            assert!(script.contains("jotun"));
+        }
+
+        let seq = commands::build_osc52_sequence("hello", false);
+        assert_eq!(seq, "\x1b]52;c;aGVsbG8=\x07");
+        let tmux_seq = commands::build_osc52_sequence("hello", true);
+        assert!(tmux_seq.starts_with("\x1bPtmux;\x1b\x1b]52;c;aGVsbG8="));
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🚀 JOTUN (v0.4.1)
+# 🚀 JOTUN (v0.5.0)
 
 **The lightning-fast, terminal-native personal knowledge base. Capture at the speed of thought. Organize with hierarchical power.**
 
@@ -27,12 +27,13 @@
 
 ---
 
-## 🆕 New in v0.4.1: Reliability, Performance & Cross-Platform Releases
-v0.4.1 hardens Jotun's core database, TUI, and distribution pipeline:
+## 🆕 New in v0.5.0: Indie TUI Polish, Ranked Search & Composable CLI
+v0.5.0 elevates Jotun's TUI, search relevance, diagnostics, and automation ergonomics while staying under **10 MB idle RSS** (`~8.5 MB` measured):
 
-- **SQLite & FTS5 Integrity**: Enabled `PRAGMA foreign_keys = ON`, WAL mode, transactional tag writes, orphan tag pruning, automatic legacy `notes_fts` migration/rebuild, prefix-safe hierarchical tag filtering (`work` matches `work/*`, not `workshop`), and hardened multi-word/special-character FTS5 search.
-- **Event-Driven TUI & Terminal Safety**: Added panic/error-safe terminal restoration (`TerminalGuard`), zero-idle-CPU event-driven rendering with cached `syntect` highlighting and stats, scrollable `Preview` pane (`Tab` -> `j`/`k`/`PgUp`/`PgDn`), `NO_COLOR` support, and `80×24` layout wrapping.
-- **Ergonomics & Packaging**: Partial `config.toml` defaults (`#[serde(default)]`), multi-word `$EDITOR` with `.md` temp files, interactive TTY guard on `jotun new`, macOS (`pbcopy`/`pbpaste`) + Wayland/X11 (`wl-copy`/`xclip`/`xsel`) clipboard fallbacks, and cross-platform release artifacts (`linux-x86_64`, `linux-aarch64`, `darwin-x86_64`, `darwin-aarch64`) with SHA-256 verification.
+- **Editorial TUI & Semantic Themes**: Five curated presets (`dracula`, `catppuccin-mocha`, `nord`, `tokyo-night`, `monochrome`), rounded active borders, clean Unicode chrome (`NO_COLOR`-ready), collapsible hierarchical tag tree with counts, 2-line rich note list + scrollbars, document header + scroll percentage + line-wrap (`w`) & zoom (`z`) toggles, and `< 80`-column responsive collapse.
+- **Safe Modals & Inline Workflows**: Confirmation modal on delete (`d`), `?` keybinding cheatsheet, inline rename (`r`), inline tag editor with `Tab` autocomplete (`t`), pinning (`p`), archiving (`a` / `A`), and optional YAML frontmatter (`title`, `tags`) round-tripping in `$EDITOR`.
+- **Ranked Search & Composable CLI**: `bm25` relevance-ranked FTS5 search with highlighted snippets (`jotun find`), `--json` output across `ls`/`show`/`find`/`tags`/`stats`/`doctor`, `jotun export` (Markdown + JSON), `jotun doctor`, `jotun completions <bash|zsh|fish>`, and `OSC 52` clipboard fallback for SSH/tmux.
+- **Performance & Security Prep**: Lazy `syntect` initialization, `50 KB / 500 line` large-note highlight cap, `NoteSummary` projections, `prepare_cached` SQLite queries, and FTS5 encryption-exclusion triggers (`is_encrypted`).
 
 ---
 
@@ -119,29 +120,35 @@ jotun tags
 | :--- | :--- |
 | `jotun dash` | Launch the **Three-Pane Interactive Dashboard**. |
 | `jotun new [text]` | Save a note with optional `--title`, `-t/--tag`, and `-s/--source` (reads piped stdin if text is omitted). |
-| `jotun ls [-t tag]` | List notes with optional hierarchical tag filtering. |
-| `jotun tags` | Display all unique tags. |
-| `jotun show <id>` | Full note display with complete metadata. |
-| `jotun find <query>` | Global FTS5 full-text search across titles and bodies. |
-| `jotun edit <id>` | Edit a note in `$VISUAL`, `$EDITOR`, configured `editor`, or `nano`. |
+| `jotun ls [-t tag] [-s src] [--archived] [--json]` | List notes with optional hierarchical tag/source filtering or JSON output. |
+| `jotun tags [--archived] [--json]` | Display all unique tags with note counts. |
+| `jotun show <id> [--json]` | Full note display with complete metadata. |
+| `jotun find <query> [-t tag] [-s src] [--archived] [--json]` | Ranked FTS5 full-text search (`bm25`) with highlighted snippets. |
+| `jotun edit <id> [--title ...] [-t ...] [--pin bool] [--archive bool] [--frontmatter]` | Edit a note in `$EDITOR` or update metadata non-interactively. |
 | `jotun rm <id> [-f]` | Delete a note (prompts for confirmation unless `--force`). |
-| `jotun cp <id>` | Copy a note's body to the system clipboard. |
+| `jotun cp <id>` | Copy a note's body to the system clipboard (with `OSC 52` fallback). |
 | `jotun paste` | Create a new note from the current system clipboard content. |
-| `jotun stats` | View **Neofetch-style analytics** and top tag distribution. |
+| `jotun stats [--json]` | View **Neofetch-style analytics** and top tag distribution. |
+| `jotun export -f <markdown\|json> -o <path>` | Export notes to YAML-frontmatter Markdown files or JSON. |
+| `jotun doctor [--json]` | Verify SQLite integrity, FTS5 sync, config, editor, and clipboard tools. |
+| `jotun completions <bash\|zsh\|fish>` | Generate shell completion scripts. |
 
 ### TUI Keybindings (`jotun dash`)
 | Key | Action |
 | :--- | :--- |
-| `Tab` | Cycle active pane (`Tags` → `Notes` → `Preview`) |
+| `Tab` / `Shift+Tab` | Cycle active pane (`Tags` → `Notes` → `Preview`) |
 | `j` / `k` or `↓` / `↑` | Navigate tags/notes or scroll `Preview` |
+| `Space` / `h` / `l` | Fold or expand nodes in the hierarchical tag tree |
 | `PageUp` / `PageDown` | Page scroll inside `Preview` |
-| `/` or `s` | Search notes (scoped to active tag if selected; `Enter`/`Esc` exits input) |
-| `n` | Create a new note in your external editor |
-| `e` | Edit the selected note in your external editor |
-| `y` | Copy the selected note to the clipboard |
-| `d` | Delete the selected note (when `Notes` pane is active) |
-| `i` | Toggle the full-screen **Insights Dashboard** |
-| `q` or `Esc` | Quit |
+| `/` or `s` (`c` clears) | Search notes (`Enter` keeps query, `Esc` clears & exits) |
+| `n` / `e` | Create or edit note in `$EDITOR` (with YAML frontmatter round-trip) |
+| `r` / `t` | Inline rename title or edit tags (with `Tab` autocomplete) |
+| `p` / `a` / `A` | Pin/unpin, archive/unarchive, or toggle viewing archived notes |
+| `w` / `z` | Toggle line wrapping or zoom active pane |
+| `y` | Copy the selected note to clipboard (or `OSC 52`) |
+| `d` | Open delete confirmation modal |
+| `i` / `?` | Toggle **Insights Dashboard** or **Keybindings Help** modal |
+| `q` or `Esc` | Close modal/filter or quit |
 
 ---
 
@@ -153,11 +160,15 @@ Jotun creates a default configuration file at `~/.config/jotun/config.toml` on i
 editor = "nvim"                # Overrides $VISUAL / $EDITOR (supports args, e.g. "code --wait")
 db_path = "/path/to/jotun.db"  # Optional custom SQLite path (or set JOTUN_DB_PATH)
 syntax_highlighting = true     # Toggle Markdown highlighting in TUI (also respects NO_COLOR)
+frontmatter = true             # Include YAML frontmatter (title, tags) in TUI $EDITOR sessions
+wrap_lines = true              # Initial line-wrap state in TUI Preview (toggle with `w`)
 
 [theme]
-active_border = "#bd93f9"      # Dracula Purple (hex or terminal color name)
-highlight_bg = "#44475a"       # Dracula Selection
-highlight_fg = "#f8f8f2"       # Dracula Foreground
+preset = "dracula"             # dracula | catppuccin-mocha | nord | tokyo-night | monochrome
+# Optional semantic overrides (legacy active_border/highlight_bg/highlight_fg also supported):
+# border_active = "#bd93f9"
+# bg_elevated = "#44475a"
+# text_primary = "#f8f8f2"
 ```
 
 ---

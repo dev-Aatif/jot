@@ -11,9 +11,12 @@
   - SQLite foreign-key cascades, WAL mode, transactional writes, orphan tag pruning, and FTS5 migration rebuild.
   - Panic/error-safe terminal restoration, event-driven rendering with cached highlighting/stats, and `Preview` scrolling.
   - Cross-platform release matrix (`linux`/`darwin`, `x86_64`/`aarch64`) with SHA-256 verification.
-- [ ] V0.5.0: Encryption & Secure Notes
-  - Password-protected note bodies.
-  - Encrypted SQLite database at rest.
+- [x] V0.5.0: Indie TUI Overhaul, Ranked Search, Exports & Diagnostics (Completed)
+  - Semantic theme presets (`dracula`, `catppuccin-mocha`, `nord`, `tokyo-night`, `monochrome`), collapsible tag tree, rich 2-line note list + scrollbars, modals (`d`, `?`, `r`, `t`), pinning/archiving, YAML frontmatter, and `< 80`-col responsiveness.
+  - `bm25` ranked FTS5 search with snippets, `--json` outputs, `jotun export` (Markdown/JSON), `jotun doctor`, `jotun completions`, `OSC 52` clipboard fallback, lazy `syntect` loading, and `is_encrypted` schema/FTS5 exclusion prep.
+- [ ] V0.5.1: Encryption & Secure Notes (CLI/TUI Unlock)
+  - Password-protected note bodies (`chacha20poly1305` + `argon2id` + `/dev/shm` editing).
+  - Encrypted SQLite database at rest option.
 - [ ] V0.6.0: Cloud Syncing & Backup
   - Automatic backup to Git or S3-compatible storage.
   - Multi-device syncing.
