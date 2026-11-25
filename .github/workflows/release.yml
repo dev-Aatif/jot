@@ -13,8 +13,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-release:
+  build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -39,17 +40,32 @@ jobs:
     - name: Stage binary and SHA-256 checksum
       shell: bash
       run: |
-        cp target/${{ matrix.target }}/release/jotun ${{ matrix.asset }}
+        mkdir -p dist
+        cp target/${{ matrix.target }}/release/jotun dist/${{ matrix.asset }}
         if command -v sha256sum >/dev/null 2>&1; then
-          sha256sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+          (cd dist && sha256sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256)
         else
-          shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+          (cd dist && shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256)
         fi
-    - name: Upload Release Asset
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.asset }}
+        path: dist/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+    - name: Create Release and Upload Assets
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          ${{ matrix.asset }}
-          ${{ matrix.asset }}.sha256
+        files: dist/*
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

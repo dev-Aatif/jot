@@ -1439,11 +1439,9 @@ fn render_preview_pane(f: &mut Frame, app: &mut App, theme: &ResolvedTheme, area
     let clamped_scroll = (app.preview_scroll as usize).min(max_scroll) as u16;
     app.preview_scroll = clamped_scroll;
 
-    let pct = if max_scroll == 0 {
-        100
-    } else {
-        ((clamped_scroll as usize * 100) / max_scroll).min(100)
-    };
+    let pct = (clamped_scroll as usize * 100)
+        .checked_div(max_scroll)
+        .map_or(100, |v| v.min(100));
 
     let content_block = Block::default()
         .borders(Borders::ALL)
